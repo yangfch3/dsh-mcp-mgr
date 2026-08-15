@@ -38,6 +38,10 @@ export interface McpManagerSnapshot {
   readonly servers: readonly McpServerState[]
   /** Workspace directories currently being discovered. */
   readonly watchedWorkspaces: readonly string[]
+  /** Strict mode: only the active workspace's servers are mounted. */
+  readonly strictMode: boolean
+  /** Strict-mode target: the workspace the web client currently has selected ('' when none). */
+  readonly activeWorkspace: string
 }
 
 /** One server entry for create/update through the Remote. */

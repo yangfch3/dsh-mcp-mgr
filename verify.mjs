@@ -130,22 +130,26 @@ console.log('remote artifact:')
 {
   const contribution = (await import(join(root, './packages/dsh-mcp-mgr/lib/typert.remote-client.js'))).default
   check('package identity', contribution.package === 'dsh-mcp-mgr')
-  check('three methods', contribution.descriptors.length === 3)
+  check('five methods', contribution.descriptors.length === 5)
   check('removeServer not colliding name', contribution.descriptors.some(d => d.method === 'removeServer') && !contribution.descriptors.some(d => d.method === 'remove'))
   for (const d of contribution.descriptors) {
     check(`strict codec ${d.namespace}/${d.method}`, d.result.mode === 'strict')
   }
   const applyDesc = contribution.descriptors.find(d => d.method === 'apply')
   check('apply has draft parameter', applyDesc.parameters.length === 1 && applyDesc.parameters[0].wire === 'draft')
+  const strictDesc = contribution.descriptors.find(d => d.method === 'setStrictMode')
+  check('setStrictMode has boolean parameter', strictDesc.parameters.length === 1 && strictDesc.parameters[0].wire === 'enabled')
+  const activeDesc = contribution.descriptors.find(d => d.method === 'setActiveWorkspace')
+  check('setActiveWorkspace has path parameter', activeDesc.parameters.length === 1 && activeDesc.parameters[0].wire === 'path')
   const snapshotSchema = contribution.descriptors.find(d => d.method === 'snapshot').result.schema
-  const parsedSnap = snapshotSchema.parse({ servers: [{ key: 'k', source: 'workspace', workspace: '/w', name: 'n', transport: 'stdio', status: 'active' }], watchedWorkspaces: ['/w'] })
-  check('snapshot codec accepts payload', parsedSnap.servers[0].name === 'n')
+  const parsedSnap = snapshotSchema.parse({ servers: [{ key: 'k', source: 'workspace', workspace: '/w', name: 'n', transport: 'stdio', status: 'active' }], watchedWorkspaces: ['/w'], strictMode: false, activeWorkspace: '' })
+  check('snapshot codec accepts payload', parsedSnap.servers[0].name === 'n' && parsedSnap.strictMode === false)
   try {
-    snapshotSchema.parse({ servers: [{ key: 'k', source: 'workspace', workspace: '/w', name: 'n', transport: 'bogus', status: 'active' }], watchedWorkspaces: [] })
+    snapshotSchema.parse({ servers: [{ key: 'k', source: 'workspace', workspace: '/w', name: 'n', transport: 'bogus', status: 'active' }], watchedWorkspaces: [], strictMode: true, activeWorkspace: '/w' })
     check('snapshot codec rejects bad transport', false)
   } catch { check('snapshot codec rejects bad transport', true) }
   try {
-    snapshotSchema.parse({ servers: [{ key: 'k', source: 'profile', name: 'n', transport: 'streamable-http', status: 'configured', sourceFile: '/x/cordis.patch.yml' }], watchedWorkspaces: [] })
+    snapshotSchema.parse({ servers: [{ key: 'k', source: 'profile', name: 'n', transport: 'streamable-http', status: 'configured', sourceFile: '/x/cordis.patch.yml' }], watchedWorkspaces: [], strictMode: false, activeWorkspace: '' })
     check('snapshot codec accepts profile row', true)
   } catch { check('snapshot codec accepts profile row', false) }
 }
@@ -158,7 +162,7 @@ console.log('registry mount:')
   await ctx.plugin(TypertRegistry)
   const dispose = ctx.typert.remotes.register(contribution)
   const snapshot = contribution.descriptors.find(d => d.method === 'snapshot')
-  const result = snapshot.result.schema.parse({ servers: [], watchedWorkspaces: [] })
+  const result = snapshot.result.schema.parse({ servers: [], watchedWorkspaces: [], strictMode: false, activeWorkspace: '' })
   check('registered and codec-parseable', result.watchedWorkspaces.length === 0)
   dispose()
   await ctx.fiber.dispose()

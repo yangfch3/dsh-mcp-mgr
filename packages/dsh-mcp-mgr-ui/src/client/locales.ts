@@ -25,6 +25,8 @@ export const zh = {
   applyFailed: '操作失败',
   removed: '已移除',
   refresh: '刷新',
+  strictMode: '严格模式',
+  strictModeHint: '严格模式：只启用当前工作区（边栏选中的会话所属工作区）的 MCP 服务，切换工作区时自动卸载其他工作区的 MCP。',
 } satisfies Record<string, string>
 
 /** MCP manager locale key union. */
@@ -55,4 +57,6 @@ export const en: Record<McpLocaleKey, string> = {
   applyFailed: 'Operation failed',
   removed: 'Removed',
   refresh: 'Refresh',
+  strictMode: 'Strict mode',
+  strictModeHint: 'Strict mode: only the selected workspace\'s (the session\'s workspace) MCP servers are enabled; switching workspaces unloads the others.',
 }

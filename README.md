@@ -9,6 +9,7 @@ A workspace-level MCP manager for DeepSeek Harness: declare MCP servers in each 
 - **Workspace MCP**: auto-discovers `mcp.json` under every registered workspace, hot-syncs on file changes, and unloads on workspace removal
 - **Profile MCP display**: unified display and management of non-workspace mcp-client registrations (profile patch / bundle / `--patch`)
 - **Settings tab**: MCP server list — source, status, inspect and remove
+- **Strict mode**: when checked, only the current workspace's (the sidebar-selected session's workspace) MCP servers are enabled; switching workspaces unloads the others. Off by default (all workspaces coexist)
 - Workspace MCP servers are registered under dsh's standard `mcp__<serverName>__<tool>` naming, so multiple servers and sources are naturally isolated
 
 ![MCP servers tab](Doc/assets/plugin-shot.jpg)

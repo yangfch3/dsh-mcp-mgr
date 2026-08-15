@@ -70,6 +70,12 @@ export class McpMgrGateway extends TypertRemoteService {
   private readonly workspaceSet = new Set<string>()
   private profileServers: readonly McpServerState[] = []
   private rescanning = false
+  /** Strict mode: only {@link activeWorkspace}'s servers are mounted. */
+  private strictMode = false
+  /** Workspace path the web client currently has selected; '' = none. */
+  private activeWorkspace = ''
+  /** Serialized rescan chain so Remote-triggered passes apply in order. */
+  private rescanChain: Promise<void> = Promise.resolve()
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'mcpMgr')
@@ -81,13 +87,13 @@ export class McpMgrGateway extends TypertRemoteService {
       { onChange: () => this.emitChange() },
     )
     this.rescanTimer = setInterval(() => {
-      void this.rescan()
+      void this.runRescan()
     }, config.rescanIntervalMs)
     ctx.effect(() => () => {
       this.fileWatcher.dispose()
       clearInterval(this.rescanTimer)
     }, 'mcp-mgr: cleanup')
-    void this.rescan()
+    void this.runRescan()
   }
 
   /** Full current projection for the UI. */
@@ -96,7 +102,35 @@ export class McpMgrGateway extends TypertRemoteService {
     return {
       servers: [...this.sync.snapshot(), ...this.profileServers],
       watchedWorkspaces: [...this.workspaceSet].sort(),
+      strictMode: this.strictMode,
+      activeWorkspace: this.activeWorkspace,
     }
+  }
+
+  /**
+   * Turn strict mode on/off and resync. Strict: only the active workspace's
+   * servers stay mounted. Non-strict: every workspace's servers mount (union).
+   * @param enabled - strict mode flag.
+   * @returns the post-resync snapshot.
+   */
+  @Remote('setStrictMode')
+  async setStrictMode(enabled: boolean): Promise<McpManagerSnapshot> {
+    this.strictMode = enabled
+    await this.runRescan()
+    return this.snapshot()
+  }
+
+  /**
+   * Report the web client's currently selected workspace ('' = none). Only
+   * strict mode reacts; non-strict keeps the union untouched.
+   * @param path - canonical workspace path, or '' for no selection.
+   * @returns the post-resync snapshot.
+   */
+  @Remote('setActiveWorkspace')
+  async setActiveWorkspace(path: string): Promise<McpManagerSnapshot> {
+    this.activeWorkspace = path
+    if (this.strictMode) await this.runRescan()
+    return this.snapshot()
   }
 
   /** Create or update one server entry in a workspace's mcp.json. */
@@ -155,6 +189,17 @@ export class McpMgrGateway extends TypertRemoteService {
     return { ok: true }
   }
 
+  /**
+   * Serialize rescan passes: a Remote-triggered pass must apply after any
+   * in-flight one settles (a skipped pass would drop the newest selection).
+   * @returns resolution after this queued pass settles.
+   */
+  private runRescan(): Promise<void> {
+    const next = this.rescanChain.then(() => this.rescan(), () => this.rescan())
+    this.rescanChain = next.catch(() => undefined)
+    return next
+  }
+
   /** One full discovery + sync pass. */
   async rescan(): Promise<void> {
     if (this.rescanning) return
@@ -178,13 +223,16 @@ export class McpMgrGateway extends TypertRemoteService {
       }
       this.fileWatcher.setWatchFiles(watchFiles, () => {
         this.parseCache.clear()
-        void this.rescan()
+        void this.runRescan()
       })
       for (const path of next) this.workspaceSet.add(path)
       for (const path of [...next].sort()) {
         const servers = this.parseCache.get(path)
         if (servers === undefined) continue
-        await this.sync.syncWorkspace({ workspacePath: path, servers })
+        // Strict mode mounts only the selected workspace; empty desires
+        // unmount every other workspace's instances (profile rows stay).
+        const desired = this.strictMode && path !== this.activeWorkspace ? [] : servers
+        await this.sync.syncWorkspace({ workspacePath: path, servers: desired })
       }
       this.profileServers = await this.scanProfileEntries()
     } finally {

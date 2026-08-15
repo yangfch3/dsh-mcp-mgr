@@ -4,6 +4,16 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { McpLocaleKey } from './locales.ts'
 import css from './McpSettingsTab.module.css'
 
+/** localStorage key for the strict-mode checkbox. */
+export const STRICT_MODE_KEY = 'dsh.mcpMgr.strictMode'
+
+/** Persisted strict-mode preference; null when never set (host default applies). */
+export function loadStrictMode(): boolean | null {
+  const stored = localStorage.getItem(STRICT_MODE_KEY)
+  if (stored === null) return null
+  return stored === '1'
+}
+
 /** Registration-side Remote face used by the tab. */
 export interface McpSettingsTabInjected {
   /** Read a current manager snapshot. */
@@ -12,6 +22,8 @@ export interface McpSettingsTabInjected {
   removeServer: (workspace: string, name: string) => Promise<McpApplyResult>
   /** Open a profile config file with the Host's default application. */
   openSourceFile: (sourceFile: string) => Promise<void>
+  /** Toggle strict mode host-side; resolves with the post-change snapshot. */
+  setStrictMode: (enabled: boolean) => Promise<McpManagerSnapshot>
 }
 
 /** Full component props assembled by the Settings slot renderer. */
@@ -47,12 +59,13 @@ function shortPath(path: string, forceLastTwo = false): string {
 }
 
 /** Render the currently registered MCP servers (workspace + profile sources). */
-export function McpSettingsTab({ snapshot, removeServer, openSourceFile, t }: McpSettingsTabProps): ReactNode {
+export function McpSettingsTab({ snapshot, removeServer, openSourceFile, setStrictMode, t }: McpSettingsTabProps): ReactNode {
   const [request, setRequest] = useState(0)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [strictMode, setStrictModeState] = useState<boolean>(() => loadStrictMode() ?? false)
 
   useEffect(() => {
     let current = true
@@ -123,12 +136,35 @@ export function McpSettingsTab({ snapshot, removeServer, openSourceFile, t }: Mc
     }
   }
 
+  const onToggleStrict = async (enabled: boolean): Promise<void> => {
+    setStrictModeState(enabled)
+    localStorage.setItem(STRICT_MODE_KEY, enabled ? '1' : '0')
+    setNotice(null)
+    try {
+      const snapshot = await setStrictMode(enabled)
+      setState({ status: 'ready', snapshot })
+    } catch (error) {
+      setStrictModeState(!enabled)
+      setNotice(`${t('applyFailed')}: ${String(error instanceof Error ? error.message : error)}`)
+    }
+  }
+
   return (
     <div className={css.section} aria-busy={state.status === 'loading'}>
       {notice !== null ? <p className={css.notice} role="status">{notice}</p> : null}
       <div className={css.heading}>
         <h3>{t('server')}</h3>
-        <button type="button" onClick={retry}>{t('refresh')}</button>
+        <div className={css.headingActions}>
+          <label className={css.strictLabel} title={t('strictModeHint')}>
+            <input
+              type="checkbox"
+              checked={strictMode}
+              onChange={(event) => { void onToggleStrict(event.target.checked) }}
+            />
+            {t('strictMode')}
+          </label>
+          <button type="button" className={css.refresh} onClick={retry}>{t('refresh')}</button>
+        </div>
       </div>
       {state.status === 'loading' ? <p className={css.status}>{t('loading')}</p> : null}
       {state.status === 'error' ? (

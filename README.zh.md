@@ -9,6 +9,7 @@ dsh 的工作区级 MCP 管理器：在每个工作区的 `.dsh/dshmm/mcp.json`�
 - **工作区 MCP**：自动发现已登记工作区的 `mcp.json`，变更热同步，工作区删除自动卸载
 - **Profile MCP 展示**：非工作区（profile patch / bundle / `--patch`）的 mcp-client 统一展示与管理
 - **设置页 Tab**：MCP 服务列表：来源、状态、查删等
+- **严格模式**：勾选后仅启用当前工作区（边栏选中会话所属工作区）的 MCP 服务，切换工作区自动卸载其他工作区的 MCP；默认关闭（所有工作区 MCP 并存）
 - 工作区的 MCP 以 dsh 规范的 `mcp__<serverName>__<tool>` 命名注册，多 server / 多来源天然隔离
 
 ![MCP 服务列表](Doc/assets/plugin-shot.jpg)
