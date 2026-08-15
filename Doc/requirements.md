@@ -71,12 +71,30 @@ ctx.tools (host 全局)  ← 所有 session 可见
 - [x] **S3 `mcp-client` cwd 语义**：✅ `config.cwd: ''` 与缺省等价，MCP SDK 原样传给 Node `spawn`，子进程继承 **host 进程** cwd（实测）→ mcp.json 的 stdio server 必须显式传工作区根路径
 - [ ] **S4 同步触发点**：设计确认项（非 spike）：watch + 周期重扫即可，settings 通道写入路径在组 1 实现时确定（chokidar 先例已确认）
 
+## 已实现（2026-08-15 追加）
+
+- **非工作区来源 MCP 展示**：host 扫描 `ctx.loader.entries()` 中 mcp-client 注册（profile patch / bundle / --patch），按 fiber 状态映射 active/error/configured，跨来源 serverName 冲突标 conflict，来源文件经 `cordis.patch.yml` 内容探测（`packages/dsh-mcp-mgr/src/profile.ts`）；UI 只读展示（来源列 + chip + 行底色区分，操作列"查看"经 `connection.api.host.openPath` 打开来源文件）
+- **表格 UI 调整**：来源路径自适应缩短（末一段，同名补末两段；profile 行固定末两段）+ hover 全路径；`table-layout: fixed` 列宽（服务/传输/状态/操作不再折行）；移除按钮红字 ghost
+- **npm 用户安装（bundle 路线）**：`dsh-mcp-mgr` 声明 `dsh.bundle`（patch 引 host + ui 两行），ui 包作其依赖；`@deepseek-ai/*` 全部 peer 化（含补漏的 `@deepseek-ai/schemastery`），配合 profile 的 `nodeLinker: hoisted` + `autoInstallPeers: false`，运行时复用 dsh 内置包、无 registry 副本。已在临时 DSH_HOME 用真实 `dsh plugin add` + `--dump-config` + 单实例冒烟全链路验证
+
+## 发布与安装（npm 用户）
+
+```sh
+# 发布（顺序：先 ui 后 mgr，mgr 的依赖里引用 ui）
+cd packages/dsh-mcp-mgr-ui && pnpm publish
+cd ../dsh-mcp-mgr && pnpm publish
+# 用户安装（等价于 scripts/install.mjs 的线上版）
+dsh plugin --profile web add dsh-mcp-mgr
+```
+
+卸载：`dsh plugin --profile web remove dsh-mcp-mgr`。当前 `scripts/install.mjs` 保留给源码开发环境。
+
 ## 未来扩展（本期不做）
 
 - workspaceRegistry 事件（给 dsh 提 PR，消除周期重扫）
 - per-session 工具过滤（需 dsh 核心支持）
 - Resources / Prompts 桥接（mcp-client 本身未实现）
-- 非工作区来源的 MCP 管理（profile 级 yml 现有注册的展示/纳管）
+- 非工作区来源 MCP 的写回管理（移除/编辑 profile patch 条目）
 - CLI 管理命令（`dsh mcp` 子命令）
 - 自定义 serverName 前缀策略（替代并集冲突报错）
 

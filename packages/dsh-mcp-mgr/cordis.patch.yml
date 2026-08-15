@@ -1,0 +1,6 @@
+# dsh-mcp-mgr bundle layer: enables the host manager and its settings tab.
+- insert:
+    - id: mcp-mgr
+      name: dsh-mcp-mgr
+    - id: ui-mcp-mgr
+      name: dsh-mcp-mgr-ui

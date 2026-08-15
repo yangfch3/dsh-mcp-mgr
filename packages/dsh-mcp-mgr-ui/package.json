@@ -35,16 +35,16 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "@deepseek-ai/dsh-api-remotes": "workspace:^",
-    "@deepseek-ai/dsh-client-locale": "workspace:^",
-    "@deepseek-ai/dsh-client-runtime": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
-    "@deepseek-ai/cordis": "workspace:^",
+    "dsh-mcp-mgr": ">=0.1.0",
+    "@deepseek-ai/dsh-api-remotes": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-connection": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-locale": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.5",
+    "@deepseek-ai/cordis": ">=4.0.1",
     "react": "^18.2.0"
   },
-  "dependencies": {
-    "dsh-mcp-mgr": "workspace:^"
-  }
+  "dependencies": {}
 }
