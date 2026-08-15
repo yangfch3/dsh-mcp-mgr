@@ -11,6 +11,8 @@ dsh 的工作区级 MCP 管理器：在每个工作区的 `.dsh/dshmm/mcp.json`�
 - **设置页 Tab**：MCP 服务列表：来源、状态、查删等
 - 工作区的 MCP 以 dsh 规范的 `mcp__<serverName>__<tool>` 命名注册，多 server / 多来源天然隔离
 
+![MCP 服务列表](Doc/assets/plugin-shot.jpg)
+
 ## 安装与卸载
 
 安装：

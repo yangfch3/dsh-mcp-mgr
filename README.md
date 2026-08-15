@@ -11,6 +11,8 @@ A workspace-level MCP manager for DeepSeek Harness: declare MCP servers in each 
 - **Settings tab**: MCP server list — source, status, inspect and remove
 - Workspace MCP servers are registered under dsh's standard `mcp__<serverName>__<tool>` naming, so multiple servers and sources are naturally isolated
 
+![MCP servers tab](Doc/assets/plugin-shot.jpg)
+
 ## Install & uninstall
 
 Install:
