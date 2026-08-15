@@ -1,27 +1,29 @@
 # dsh-mcp-mgr
 
-dsh 的工作区级 MCP 管理器：在每个工作区的 `.dsh/dshmm/mcp.json`（类 Claude/Codex 的 `mcpServers` 格式）中声明 MCP server，自动发现并动态注册为 dsh 插件实例，并提供设置页管理界面。
+English | [中文](README.zh.md)
 
-## 功能
+A workspace-level MCP manager for DeepSeek Harness: declare MCP servers in each workspace's `.dsh/dshmm/mcp.json` (Claude/Codex-style `mcpServers` format), auto-discovered and dynamically registered as dsh plugin instances, with a management UI in the settings page.
 
-- **工作区 MCP**：自动发现已登记工作区的 `mcp.json`，变更热同步，工作区删除自动卸载
-- **Profile MCP 展示**：配置树中（profile patch / bundle / `--patch`）的 mcp-client 注册只读展示，含真实状态、跨来源冲突提示、来源文件一键打开
-- **设置页 Tab**：服务列表（状态徽章、来源标注、宽度自适应表格）；工作区来源可移除，配置来源可查看来源文件
-- 工具以 `mcp__<serverName>__<tool>` 命名注册，多 server / 多来源天然隔离
+## Features
 
-## 安装
+- **Workspace MCP**: auto-discovers `mcp.json` under every registered workspace, hot-syncs on file changes, and unloads on workspace removal
+- **Profile MCP display**: read-only view of mcp-client registrations from the config tree (profile patch / bundle / `--patch`), with real status, cross-source conflict hints, and one-click opening of the source file
+- **Settings tab**: server list (status badges, source labels, self-sizing table); workspace-sourced servers can be removed, config-sourced ones can be inspected
+- Tools are registered as `mcp__<serverName>__<tool>`, so multiple servers and sources are naturally isolated
+
+## Install
 
 ```sh
 dsh plugin --profile web add dsh-mcp-mgr
 ```
 
-> 需已安装 dsh CLI，并已初始化目标 profile: 参考 [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
+> Requires a dsh CLI installation and an initialized target profile.
 
-卸载：`dsh plugin --profile web remove dsh-mcp-mgr`
+Uninstall: `dsh plugin --profile web remove dsh-mcp-mgr`
 
-## 工作区配置
+## Workspace configuration
 
-工作区根目录下的 `.dsh/dshmm/mcp.json`：
+`.dsh/dshmm/mcp.json` at the workspace root:
 
 ```json
 {
@@ -32,31 +34,31 @@ dsh plugin --profile web add dsh-mcp-mgr
 }
 ```
 
-- `type` 缺省视为远程 Streamable HTTP；支持 `${VAR}` 环境变量展开
-- stdio server 的 cwd 默认为工作区根目录
-- serverName 全局唯一，冲突时后加载者报错（UI 标冲突）
+- A missing `type` is treated as remote Streamable HTTP; `${VAR}` environment expansion is supported
+- The stdio server's cwd defaults to the workspace root
+- `serverName` must be globally unique; a later duplicate fails loudly (flagged as a conflict in the UI)
 
-## 开发
+## Development
 
-构建相关：
+Build:
 
 ```sh
-# host 插件
+# host plugin
 tsc -p packages/dsh-mcp-mgr && node gen.mjs
 
-# UI 插件（ui 包目录）
+# UI plugin (from the ui package directory)
 tsc -p packages/dsh-mcp-mgr-ui && tsdown --config-loader tsx --env.DSH_BUILD_FACE client
 
-# 回归
+# regression
 node verify.mjs
 ```
 
-本地（源码）安装验证与卸载：
+Local (source) install verification and uninstall:
 
 ```sh
 node scripts/install.mjs
 
-# 卸载：node scripts/uninstall.mjs
+# uninstall: node scripts/uninstall.mjs
 ```
 
-设计文档见 `Doc/requirements.md`。
+Design docs live in `Doc/requirements.md`.
