@@ -11,23 +11,17 @@ dsh 的工作区级 MCP 管理器：在每个工作区的 `.dsh/dshmm/mcp.json`�
 
 ## 安装
 
-**npm 用户（已发布后）**
-
 ```sh
 dsh plugin --profile web add dsh-mcp-mgr
 ```
 
+> 需已安装 dsh CLI，并已初始化目标 profile: 参考 [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
+
 卸载：`dsh plugin --profile web remove dsh-mcp-mgr`
 
-**源码开发环境**（本地 checkout）
+## 工作区配置
 
-```sh
-node scripts/install.mjs      # 卸载：node scripts/uninstall.mjs
-```
-
-## 配置
-
-工作区根目录 `.dsh/dshmm/mcp.json`：
+工作区根目录下的 `.dsh/dshmm/mcp.json`：
 
 ```json
 {
@@ -44,13 +38,25 @@ node scripts/install.mjs      # 卸载：node scripts/uninstall.mjs
 
 ## 开发
 
+构建相关：
+
 ```sh
 # host 插件
 tsc -p packages/dsh-mcp-mgr && node gen.mjs
+
 # UI 插件（ui 包目录）
 tsc -p packages/dsh-mcp-mgr-ui && tsdown --config-loader tsx --env.DSH_BUILD_FACE client
+
 # 回归
 node verify.mjs
+```
+
+本地（源码）安装验证与卸载：
+
+```sh
+node scripts/install.mjs
+
+# 卸载：node scripts/uninstall.mjs
 ```
 
 设计文档见 `Doc/requirements.md`。
