@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "types": ["node"],
+    "paths": {
+      "@deepseek-ai/dsh-mcp-client": ["./packages/dsh-mcp-mgr/stub/mcp-client.d.ts"],
+      "@deepseek-ai/dsh-typert-protocol": ["./packages/vendor-typert-protocol/src/index.ts"],
+      "@deepseek-ai/dsh-typert-protocol/types": ["./packages/vendor-typert-protocol/src/types.ts"]
+    },
+    "noEmit": true
+  },
+  "include": [],
+  "references": [
+    { "path": "./packages/dsh-mcp-mgr" },
+    { "path": "./packages/vendor-typert-protocol" }
+  ]
+}

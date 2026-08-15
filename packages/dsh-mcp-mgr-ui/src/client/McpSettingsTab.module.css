@@ -1,0 +1,79 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.status {
+  margin: 0;
+  opacity: 0.7;
+}
+
+.failure {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notice {
+  margin: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.table th,
+.table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+
+.workspace {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusBadge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.85em;
+}
+
+.statusBadge[data-status='active'] {
+  background: color-mix(in srgb, #2e9e5b 18%, transparent);
+  color: #2e9e5b;
+}
+
+.statusBadge[data-status='error'],
+.statusBadge[data-status='conflict'] {
+  background: color-mix(in srgb, #c0392b 18%, transparent);
+  color: #c0392b;
+}
+
+.statusBadge[data-status='connecting'],
+.statusBadge[data-status='removing'] {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  opacity: 0.85;
+}
+
+.errorText {
+  display: block;
+  margin-top: 2px;
+  opacity: 0.75;
+  font-size: 0.85em;
+}

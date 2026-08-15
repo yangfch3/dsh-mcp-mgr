@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "types": ["node"],
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "declaration": true,
+    "composite": true,
+    "incremental": true
+  },
+  "include": ["src"]
+}
