@@ -18,9 +18,10 @@ import { dirname, join } from 'node:path'
 import Schema from '@deepseek-ai/schemastery'
 import { collectWorkspaces, hasManagerFile } from './discovery.ts'
 import { draftToEntry, mcpJsonPath, parseMcpJson, type ParsedServer } from './parse.ts'
+import { scanProfileEntries, type LoaderEntryView } from './profile.ts'
 import { McpSync } from './sync.ts'
 import { createFileWatcher } from './watch.ts'
-import type { McpApplyResult, McpManagerSnapshot, McpServerDraft } from './types.ts'
+import type { McpApplyResult, McpManagerSnapshot, McpServerDraft, McpServerState } from './types.ts'
 
 export type * from './types.ts'
 export { parseMcpJson, mcpJsonPath, expandEnv } from './parse.ts'
@@ -67,6 +68,7 @@ export class McpMgrGateway extends TypertRemoteService {
   private readonly rescanTimer: ReturnType<typeof setInterval>
   private readonly parseCache = new Map<string, readonly ParsedServer[]>()
   private readonly workspaceSet = new Set<string>()
+  private profileServers: readonly McpServerState[] = []
   private rescanning = false
 
   constructor(ctx: Context, config: Config) {
@@ -92,7 +94,7 @@ export class McpMgrGateway extends TypertRemoteService {
   @Remote('snapshot')
   snapshot(): McpManagerSnapshot {
     return {
-      servers: this.sync.snapshot(),
+      servers: [...this.sync.snapshot(), ...this.profileServers],
       watchedWorkspaces: [...this.workspaceSet].sort(),
     }
   }
@@ -184,9 +186,22 @@ export class McpMgrGateway extends TypertRemoteService {
         if (servers === undefined) continue
         await this.sync.syncWorkspace({ workspacePath: path, servers })
       }
+      this.profileServers = await this.scanProfileEntries()
     } finally {
       this.rescanning = false
     }
+  }
+
+  /**
+   * Project profile-level mcp-client registrations (cordis config tree: profile
+   * patches, bundles, --patch overlays) as read-only server rows.
+   */
+  private async scanProfileEntries(): Promise<McpServerState[]> {
+    const loader = (this.ctx as { get?: (name: string) => unknown }).get?.('loader') as
+      | { entries(): readonly LoaderEntryView[] }
+      | undefined
+    if (loader === undefined) return []
+    return scanProfileEntries(loader.entries(), new Set(this.sync.snapshot().map(server => server.name)))
   }
 
   private readWorkspace(workspacePath: string): readonly ParsedServer[] {

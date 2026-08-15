@@ -3,6 +3,7 @@
  */
 
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
@@ -25,7 +26,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const NS = 'settings.mcpMgr'
 
 /** Services required by the Settings registration. */
-export const inject = ['slots', 'locale', 'remote']
+export const inject = ['slots', 'locale', 'remote', 'connection']
 
 /** The namespace service this plugin mounts itself — fetched via `ctx.get`, never injected. */
 interface McpMgrNamespace {
@@ -71,6 +72,16 @@ export async function apply(ctx: ClientContext): Promise<void> {
         throw new Error(`mcpMgr.removeServer failed: ${result.error.code}: ${result.error.message}`)
       }
       return result.value
+    },
+    openSourceFile: async (sourceFile) => {
+      const connection = ctx.get('connection') as ConnectionHandle | undefined
+      if (connection === undefined) {
+        throw new Error('connection service is not mounted')
+      }
+      const response = await connection.api.host.openPath({ path: sourceFile }, new AbortController().signal)
+      if (!response.result.ok) {
+        throw new Error(response.result.error.message)
+      }
     },
   })
 

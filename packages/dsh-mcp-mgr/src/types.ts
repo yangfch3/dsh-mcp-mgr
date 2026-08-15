@@ -3,6 +3,9 @@
  * @module dsh-mcp-mgr/types
  */
 
+/** Where one MCP server registration comes from. */
+export type McpServerSource = 'workspace' | 'profile'
+
 /** Model-visible lifecycle status of one dynamically registered MCP server. */
 export type McpServerStatus =
   | 'connecting'
@@ -10,19 +13,24 @@ export type McpServerStatus =
   | 'error'
   | 'conflict'
   | 'removing'
+  | 'configured'
 
 /** One dynamically registered MCP server as seen by the UI. */
 export interface McpServerState {
-  /** Stable instance key: `<workspacePath>#<serverName>`. */
+  /** Stable instance key: `<workspacePath>#<serverName>` for workspace rows, `profile#<entryId>` for profile rows. */
   readonly key: string
-  /** Workspace directory that contributed this server. */
-  readonly workspace: string
+  /** Registration origin: workspace mcp.json or a profile-level config entry. */
+  readonly source: McpServerSource
   /** serverName namespace (also the mcp.json entry name). */
   readonly name: string
   readonly transport: 'stdio' | 'streamable-http'
   readonly status: McpServerStatus
   /** Human-readable failure text when status is error/conflict. */
   readonly error?: string
+  /** Workspace source only: directory that contributed this server. */
+  readonly workspace?: string
+  /** Profile source only: config file declaring the entry. */
+  readonly sourceFile?: string
 }
 
 /** Full manager projection served to the UI. */

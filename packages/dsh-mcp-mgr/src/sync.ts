@@ -97,6 +97,7 @@ export class McpSync {
         left.workspacePath.localeCompare(right.workspacePath) || left.name.localeCompare(right.name))
       .map(instance => ({
         key: instance.key,
+        source: 'workspace' as const,
         workspace: instance.workspacePath,
         name: instance.name,
         transport: instance.config.transport,

@@ -9,6 +9,7 @@ import { Context } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-har
 import TypertRegistry from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/packages/typert/registry/lib/index.js'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { parseMcpJson, expandEnv } from './packages/dsh-mcp-mgr/lib/types/parse.js'
 import { McpSync } from './packages/dsh-mcp-mgr/lib/types/sync.js'
 
@@ -84,7 +85,47 @@ console.log('sync:')
   check('conflict workspace removed', sync.snapshot().every(s => s.workspace === '/ws'))
 }
 
-// ── 3. Remote artifact shape ────────────────────────────────────────────────
+// ── 3. profile entry scan ───────────────────────────────────────────────────
+console.log('profile scan:')
+{
+  const { scanProfileEntries, findProfilePatchFile } = await import(join(root, './packages/dsh-mcp-mgr/lib/types/profile.js'))
+  const tmpProfiles = join(root, '.verify-tmp-profiles')
+  rmSync(tmpProfiles, { recursive: true, force: true })
+  mkdirSync(join(tmpProfiles, 'web'), { recursive: true })
+  writeFileSync(join(tmpProfiles, 'web', 'cordis.patch.yml'), '- insert:\n    - id: mcp-deepwiki\n      name: "@deepseek-ai/dsh-mcp-client"\n      config:\n        serverName: deepwiki\n        transport: streamable-http\n        url: https://mcp.deepwiki.com/mcp\n    - id: "mcp-quoted"\n      name: "@deepseek-ai/dsh-mcp-client"\n      config:\n        serverName: quoted\n        transport: stdio\n', 'utf8')
+  const entries = [
+    // profile patch entry with a live active fiber
+    { id: 'mcp-deepwiki', options: { name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'deepwiki', transport: 'streamable-http' } }, fiber: { state: 2, await: async () => undefined } },
+    // loader-prefixed entry id must fall back to the raw options.id
+    { id: 'root:mcp-quoted', options: { id: 'mcp-quoted', name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'quoted', transport: 'stdio' } } },
+    // entry with a failed fiber (duplicate serverName at runtime)
+    { id: 'mcp-dup', options: { name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'dup', transport: 'stdio' } }, fiber: { state: 3, await: async () => { throw new Error('duplicate serverName "dup"') } } },
+    // declared but not yet loaded
+    { id: 'mcp-idle', options: { name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'idle', transport: 'streamable-http' } } },
+    // name collision with a workspace server
+    { id: 'mcp-clash', options: { name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'unity', transport: 'streamable-http' } } },
+    // not an mcp-client entry
+    { id: 'mcp-mgr', options: { name: 'dsh-mcp-mgr' } },
+    // disabled mcp-client entry
+    { id: 'mcp-off', options: { name: '@deepseek-ai/dsh-mcp-client', disabled: true, config: { serverName: 'off', transport: 'stdio' } } },
+    // bare plugin name spelling
+    { id: 'mcp-bare', options: { name: 'dsh-mcp-client', config: { serverName: 'bare', transport: 'stdio' } } },
+  ]
+  const rows = await scanProfileEntries(entries, new Set(['unity']), tmpProfiles)
+  check('profile rows exclude non-mcp entries', rows.every(r => r.source === 'profile'))
+  check('active fiber -> active', rows.some(r => r.name === 'deepwiki' && r.status === 'active' && r.sourceFile === join(tmpProfiles, 'web', 'cordis.patch.yml')))
+  check('failed fiber -> error with message', rows.some(r => r.name === 'dup' && r.status === 'error' && r.error === 'duplicate serverName "dup"'))
+  check('no fiber -> configured', rows.some(r => r.name === 'idle' && r.status === 'configured'))
+  check('workspace name collision -> conflict', rows.some(r => r.name === 'unity' && r.status === 'conflict'))
+  check('disabled entry skipped', !rows.some(r => r.name === 'off'))
+  check('bare name spelling included', rows.some(r => r.name === 'bare' && r.transport === 'stdio'))
+  check('sorted by name', rows.every((r, i) => i === 0 || rows[i - 1].name <= r.name))
+  check('unknown entry has no source file', rows.find(r => r.name === 'idle').sourceFile === undefined)
+  check('prefixed id falls back to raw options.id', rows.find(r => r.name === 'quoted')?.sourceFile === join(tmpProfiles, 'web', 'cordis.patch.yml'))
+  rmSync(tmpProfiles, { recursive: true, force: true })
+}
+
+// ── 4. Remote artifact shape ────────────────────────────────────────────────
 console.log('remote artifact:')
 {
   const contribution = (await import(join(root, './packages/dsh-mcp-mgr/lib/typert.remote-client.js'))).default
@@ -97,12 +138,16 @@ console.log('remote artifact:')
   const applyDesc = contribution.descriptors.find(d => d.method === 'apply')
   check('apply has draft parameter', applyDesc.parameters.length === 1 && applyDesc.parameters[0].wire === 'draft')
   const snapshotSchema = contribution.descriptors.find(d => d.method === 'snapshot').result.schema
-  const parsedSnap = snapshotSchema.parse({ servers: [{ key: 'k', workspace: '/w', name: 'n', transport: 'stdio', status: 'active' }], watchedWorkspaces: ['/w'] })
+  const parsedSnap = snapshotSchema.parse({ servers: [{ key: 'k', source: 'workspace', workspace: '/w', name: 'n', transport: 'stdio', status: 'active' }], watchedWorkspaces: ['/w'] })
   check('snapshot codec accepts payload', parsedSnap.servers[0].name === 'n')
   try {
-    snapshotSchema.parse({ servers: [{ key: 'k', workspace: '/w', name: 'n', transport: 'bogus', status: 'active' }], watchedWorkspaces: [] })
+    snapshotSchema.parse({ servers: [{ key: 'k', source: 'workspace', workspace: '/w', name: 'n', transport: 'bogus', status: 'active' }], watchedWorkspaces: [] })
     check('snapshot codec rejects bad transport', false)
   } catch { check('snapshot codec rejects bad transport', true) }
+  try {
+    snapshotSchema.parse({ servers: [{ key: 'k', source: 'profile', name: 'n', transport: 'streamable-http', status: 'configured', sourceFile: '/x/cordis.patch.yml' }], watchedWorkspaces: [] })
+    check('snapshot codec accepts profile row', true)
+  } catch { check('snapshot codec accepts profile row', false) }
 }
 
 // ── 4. Real registry mount ──────────────────────────────────────────────────
