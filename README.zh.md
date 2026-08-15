@@ -7,23 +7,30 @@ dsh 的工作区级 MCP 管理器：在每个工作区的 `.dsh/dshmm/mcp.json`�
 ## 功能
 
 - **工作区 MCP**：自动发现已登记工作区的 `mcp.json`，变更热同步，工作区删除自动卸载
-- **Profile MCP 展示**：配置树中（profile patch / bundle / `--patch`）的 mcp-client 注册只读展示，含真实状态、跨来源冲突提示、来源文件一键打开
-- **设置页 Tab**：服务列表（状态徽章、来源标注、宽度自适应表格）；工作区来源可移除，配置来源可查看来源文件
-- 工具以 `mcp__<serverName>__<tool>` 命名注册，多 server / 多来源天然隔离
+- **Profile MCP 展示**：非工作区（profile patch / bundle / `--patch`）的 mcp-client 统一展示与管理
+- **设置页 Tab**：MCP 服务列表：来源、状态、查删等
+- 工作区的 MCP 以 dsh 规范的 `mcp__<serverName>__<tool>` 命名注册，多 server / 多来源天然隔离
 
-## 安装
+## 安装与卸载
 
+安装：
 ```sh
-dsh plugin --profile web add dsh-mcp-mgr
+npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr
 ```
 
-> 需已安装 dsh CLI，并已初始化目标 profile: 参考 [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)
+启动：
+```sh
+npx @deepseek-ai/dsh web
+```
 
-卸载：`dsh plugin --profile web remove dsh-mcp-mgr`
+卸载：
+```sh
+npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr
+```
 
 ## 工作区配置
 
-工作区根目录下的 `.dsh/dshmm/mcp.json`：
+插件自动识别工作区根目录下的 `.dsh/dshmm/mcp.json`，文件内容示例如下：
 
 ```json
 {
@@ -38,7 +45,7 @@ dsh plugin --profile web add dsh-mcp-mgr
 - stdio server 的 cwd 默认为工作区根目录
 - serverName 全局唯一，冲突时后加载者报错（UI 标冲突）
 
-## 开发
+## 开发需知
 
 构建相关：
 
@@ -56,9 +63,11 @@ node verify.mjs
 本地（源码）安装验证与卸载：
 
 ```sh
+# 安装
 node scripts/install.mjs
 
-# 卸载：node scripts/uninstall.mjs
+# 卸载
+node scripts/uninstall.mjs
 ```
 
 设计文档见 `Doc/requirements.md`。
