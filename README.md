@@ -14,7 +14,7 @@ A workspace-level MCP manager for DeepSeek Harness: declare MCP servers in each 
 
 ![MCP servers tab](Doc/assets/plugin-shot.jpg)
 
-## Install & uninstall
+## Install, update & uninstall
 
 Install:
 
@@ -27,6 +27,16 @@ Start:
 ```sh
 npx @deepseek-ai/dsh web
 ```
+
+Update (when a new version is published; restarts into effect):
+
+```sh
+npx @deepseek-ai/dsh plugin --profile web update dsh-mcp-mgr dsh-mcp-mgr-ui
+```
+
+> `dsh plugin` forwards to pnpm, so `update` follows pnpm semantics: list both
+> packages — the UI package (`dsh-mcp-mgr-ui`) is a dependency of the host
+> package and is not touched by a bare `update dsh-mcp-mgr`.
 
 Uninstall:
 
