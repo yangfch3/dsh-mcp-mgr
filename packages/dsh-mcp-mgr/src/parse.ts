@@ -28,7 +28,7 @@ export interface ParseResult {
 }
 
 /** mcp-client serverName budget. */
-const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
+export const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
 /** Whole-string `${VAR}` env expansion. */
 const ENV_REF_PATTERN = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/
 
@@ -196,4 +196,48 @@ export function draftToEntry(draft: {
     url: draft.url,
     ...(draft.headers !== undefined && Object.keys(draft.headers).length > 0 ? { headers: { ...draft.headers } } : {}),
   }
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    && Object.values(value).every(item => typeof item === 'string')
+}
+
+/**
+ * Validate one server draft against the same rules parseMcpJson enforces,
+ * so a form can never write an entry the rescan would reject.
+ * @param draft - the candidate entry (name included).
+ * @returns the reason the draft is invalid, or undefined when valid.
+ */
+export function validateDraft(draft: {
+  readonly name: string
+  readonly transport: 'stdio' | 'streamable-http'
+  readonly command?: string
+  readonly args?: readonly string[]
+  readonly env?: Readonly<Record<string, string>>
+  readonly url?: string
+  readonly headers?: Readonly<Record<string, string>>
+}): string | undefined {
+  if (!SERVER_NAME_PATTERN.test(draft.name)) {
+    return `serverName must match ${String(SERVER_NAME_PATTERN)}`
+  }
+  if (draft.transport === 'stdio') {
+    if (draft.command === undefined || draft.command.trim().length === 0) {
+      return 'stdio servers require a "command"'
+    }
+    if (draft.args !== undefined && !Array.isArray(draft.args)) {
+      return '"args" must be an array of strings'
+    }
+    if (draft.env !== undefined && !isStringRecord(draft.env)) {
+      return '"env" must be an object of strings'
+    }
+    return undefined
+  }
+  if (draft.url === undefined || draft.url.trim().length === 0) {
+    return 'http servers require a "url"'
+  }
+  if (draft.headers !== undefined && !isStringRecord(draft.headers)) {
+    return '"headers" must be an object of strings'
+  }
+  return undefined
 }

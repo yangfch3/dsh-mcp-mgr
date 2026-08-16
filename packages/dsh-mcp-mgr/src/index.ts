@@ -13,12 +13,13 @@ import type { Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 // The mcp-client plugin object; dynamically mounted one instance per server.
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client'
-import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs'
+import { scopeOf } from '@deepseek-ai/dsh-scope'
+import { readFileSync, writeFileSync, mkdirSync, renameSync, realpathSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import Schema from '@deepseek-ai/schemastery'
 import { collectWorkspaces, hasManagerFile } from './discovery.ts'
-import { draftToEntry, mcpJsonPath, parseMcpJson, type ParsedServer } from './parse.ts'
-import { scanProfileEntries, type LoaderEntryView } from './profile.ts'
+import { draftToEntry, mcpJsonPath, parseMcpJson, validateDraft, type ParsedServer } from './parse.ts'
+import { profileServerNames, scanProfileEntries, type LoaderEntryView } from './profile.ts'
 import { McpSync } from './sync.ts'
 import { createFileWatcher } from './watch.ts'
 import type { McpApplyResult, McpManagerSnapshot, McpServerDraft, McpServerState } from './types.ts'
@@ -81,7 +82,32 @@ export class McpMgrGateway extends TypertRemoteService {
     super(ctx, 'mcpMgr')
     this.sync = new McpSync(
       {
-        create: async config => ctx.plugin(MCP_CLIENT_PLUGIN, config),
+        create: async config => {
+          const fiber = await ctx.plugin(MCP_CLIENT_PLUGIN, config)
+          // Activation awaits the initial connect + tool discovery: tools
+          // registered under the server namespace prove real connectivity,
+          // while a failed connect activates with no tools. The probe must
+          // never reject create — a rejected create would leak the already
+          // activated fiber (its serverName stays held) and the next mount
+          // of the same name would fail as a duplicate. Any probe failure is
+          // surfaced on the row so a silent "registered" is explainable.
+          let connected = false
+          let probeError: string | undefined
+          const tools = (ctx as { get?: (name: string) => unknown }).get?.('tools')
+          if (tools === undefined) {
+            probeError = 'tools service not accessible'
+          } else {
+            try {
+              connected = serverHasTools(ctx, config.serverName)
+            } catch (error) {
+              probeError = String(error instanceof Error ? error.message : error)
+            }
+          }
+          if (probeError !== undefined) {
+            ctx.logger.warn(`mcp-mgr: connectivity probe failed for ${config.serverName}: ${probeError}`)
+          }
+          return { fiber, connected, ...(probeError === undefined ? {} : { probeError }) }
+        },
         dispose: fiber => (fiber as { dispose(): Promise<void> }).dispose(),
       },
       { onChange: () => this.emitChange() },
@@ -133,18 +159,28 @@ export class McpMgrGateway extends TypertRemoteService {
     return this.snapshot()
   }
 
-  /** Create or update one server entry in a workspace's mcp.json. */
+  /**
+   * Create one server entry in a workspace's mcp.json (file created when
+   * absent). Resolves only after the resync settles, so a caller's follow-up
+   * snapshot already reflects the mounted state.
+   */
   @Remote('apply')
-  apply(draft: McpServerDraft): McpApplyResult {
-    const path = mcpJsonPath(draft.workspace)
-    if (!hasManagerFile(draft.workspace)) {
-      return { ok: false, error: `no mcp.json under ${draft.workspace}` }
-    }
+  async apply(draft: McpServerDraft): Promise<McpApplyResult> {
+    const invalid = validateDraft(draft)
+    if (invalid !== undefined) return { ok: false, error: invalid }
+    // One canonical path for the file write and the parse-cache key, so a
+    // non-canonical client input (e.g. a symlinked form) can never desync
+    // this mutation from the resync below.
+    const workspacePath = realpathSync(draft.workspace)
+    const path = mcpJsonPath(workspacePath)
     let document: { mcpServers?: Record<string, unknown> }
     try {
       document = JSON.parse(readFileSync(path, 'utf8')) as { mcpServers?: Record<string, unknown> }
     } catch (error) {
-      return { ok: false, error: `unreadable mcp.json: ${String(error instanceof Error ? error.message : error)}` }
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        return { ok: false, error: `unreadable mcp.json: ${String(error instanceof Error ? error.message : error)}` }
+      }
+      document = {}
     }
     if (document === null || typeof document !== 'object' || Array.isArray(document)) {
       return { ok: false, error: 'mcp.json must contain a JSON object' }
@@ -153,6 +189,9 @@ export class McpMgrGateway extends TypertRemoteService {
     if (typeof servers !== 'object' || Array.isArray(servers)) {
       return { ok: false, error: 'mcpServers must be an object' }
     }
+    if (servers[draft.name] !== undefined) {
+      return { ok: false, error: `serverName "${draft.name}" already exists in ${workspacePath}` }
+    }
     servers[draft.name] = draftToEntry(draft)
     document.mcpServers = servers
     try {
@@ -160,6 +199,11 @@ export class McpMgrGateway extends TypertRemoteService {
     } catch (error) {
       return { ok: false, error: `write failed: ${String(error instanceof Error ? error.message : error)}` }
     }
+    // A brand-new file is not watched yet: resync now so the entry mounts
+    // without waiting for the periodic rescan. The mutation invalidates the
+    // parse cache, or this pass would re-sync the pre-write parse.
+    this.parseCache.delete(workspacePath)
+    await this.runRescan()
     return { ok: true }
   }
 
@@ -167,12 +211,16 @@ export class McpMgrGateway extends TypertRemoteService {
    * Remove one server entry from a workspace's mcp.json.
    * Named `removeServer`: `remove` collides with the client gateway's
    * RemoteNamespaceService prototype method and fails contribution mounts.
+   * Resolves only after the resync settles, so the caller's follow-up
+   * snapshot already reflects the unload.
    */
   @Remote('removeServer')
-  removeServer(workspace: string, serverName: string): McpApplyResult {
-    const path = mcpJsonPath(workspace)
-    if (!hasManagerFile(workspace)) {
-      return { ok: false, error: `no mcp.json under ${workspace}` }
+  async removeServer(workspace: string, serverName: string): Promise<McpApplyResult> {
+    // Canonical path shared by the file write and the parse-cache key.
+    const workspacePath = realpathSync(workspace)
+    const path = mcpJsonPath(workspacePath)
+    if (!hasManagerFile(workspacePath)) {
+      return { ok: false, error: `no mcp.json under ${workspacePath}` }
     }
     try {
       const document = JSON.parse(readFileSync(path, 'utf8')) as { mcpServers?: Record<string, unknown> }
@@ -186,6 +234,10 @@ export class McpMgrGateway extends TypertRemoteService {
     } catch (error) {
       return { ok: false, error: `write failed: ${String(error instanceof Error ? error.message : error)}` }
     }
+    // Invalidate the cached parse so the resync below drops the removed
+    // entry instead of replaying the pre-write state.
+    this.parseCache.delete(workspacePath)
+    await this.runRescan()
     return { ok: true }
   }
 
@@ -226,6 +278,9 @@ export class McpMgrGateway extends TypertRemoteService {
         void this.runRescan()
       })
       for (const path of next) this.workspaceSet.add(path)
+      // Names live in profile-level mcp-client instances are unmountable:
+      // flag workspace rows conflict instead of failing the mount.
+      this.sync.setReservedNames(profileServerNames(this.loaderEntries()))
       for (const path of [...next].sort()) {
         const servers = this.parseCache.get(path)
         if (servers === undefined) continue
@@ -234,10 +289,27 @@ export class McpMgrGateway extends TypertRemoteService {
         const desired = this.strictMode && path !== this.activeWorkspace ? [] : servers
         await this.sync.syncWorkspace({ workspacePath: path, servers: desired })
       }
+      // A server down at mount reconnects in the background; re-probe so its
+      // status flips to connected once the tools actually register.
+      this.sync.refreshConnectivity(name => {
+        try {
+          return serverHasTools(this.ctx, name)
+        } catch {
+          return false
+        }
+      })
       this.profileServers = await this.scanProfileEntries()
     } finally {
       this.rescanning = false
     }
+  }
+
+  /** Loader entries when the loader service is mounted (web profile). */
+  private loaderEntries(): readonly LoaderEntryView[] {
+    const loader = (this.ctx as { get?: (name: string) => unknown }).get?.('loader') as
+      | { entries(): readonly LoaderEntryView[] }
+      | undefined
+    return loader?.entries() ?? []
   }
 
   /**
@@ -245,11 +317,7 @@ export class McpMgrGateway extends TypertRemoteService {
    * patches, bundles, --patch overlays) as read-only server rows.
    */
   private async scanProfileEntries(): Promise<McpServerState[]> {
-    const loader = (this.ctx as { get?: (name: string) => unknown }).get?.('loader') as
-      | { entries(): readonly LoaderEntryView[] }
-      | undefined
-    if (loader === undefined) return []
-    return scanProfileEntries(loader.entries(), new Set(this.sync.snapshot().map(server => server.name)))
+    return scanProfileEntries(this.loaderEntries(), new Set(this.sync.snapshot().map(server => server.name)))
   }
 
   private readWorkspace(workspacePath: string): readonly ParsedServer[] {
@@ -277,6 +345,21 @@ function atomicWriteJson(path: string, document: unknown): void {
   const tmp = join(dirname(path), `.mcp.json.tmp-${process.pid}`)
   writeFileSync(tmp, `${JSON.stringify(document, null, 2)}\n`, 'utf8')
   renameSync(tmp, path)
+}
+
+/** Whether the tools registry holds any `mcp__<serverName>__*` tool. */
+function serverHasTools(ctx: unknown, serverName: string): boolean {
+  // ctx.get, never property access: un-injected service properties throw
+  // under Cordis's inject guard, and `tools` is an optional probe here.
+  const tools = (ctx as { get?: (name: string) => unknown }).get?.('tools') as
+    | { schemas(scope?: string | undefined): readonly { name: string }[] }
+    | undefined
+  if (tools === undefined) return false
+  const prefix = `mcp__${serverName}__`
+  // The gateway's own scope view: includes the global layer and every scope
+  // on the gateway's chain, so scoped registrations are visible too.
+  const names = tools.schemas(scopeOf(ctx))
+  return names.some(schema => schema.name.startsWith(prefix))
 }
 
 /**

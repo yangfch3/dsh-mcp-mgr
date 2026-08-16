@@ -26,8 +26,9 @@
   cursor: pointer;
 }
 
-/* Primary action: filled accent so it never reads as disabled. */
-.refresh {
+/* Primary actions: filled accent so they never read as disabled. */
+.refresh,
+.add {
   color: #fff;
   background: #2e6b9e;
   border: 1px solid #2e6b9e;
@@ -36,8 +37,14 @@
   cursor: pointer;
 }
 
-.refresh:hover {
+.refresh:hover:not(:disabled),
+.add:hover:not(:disabled) {
   background: color-mix(in srgb, #2e6b9e 85%, #000);
+}
+
+.add:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .status {
@@ -131,7 +138,7 @@
   white-space: nowrap;
 }
 
-.statusBadge[data-status='active'] {
+.statusBadge[data-status='connected'] {
   background: color-mix(in srgb, #2e9e5b 18%, transparent);
   color: #2e9e5b;
 }
@@ -143,7 +150,8 @@
 }
 
 .statusBadge[data-status='connecting'],
-.statusBadge[data-status='removing'] {
+.statusBadge[data-status='removing'],
+.statusBadge[data-status='registered'] {
   background: color-mix(in srgb, currentColor 12%, transparent);
   opacity: 0.85;
 }

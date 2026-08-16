@@ -30,6 +30,25 @@ export interface LoaderEntryView {
 }
 
 /**
+ * serverNames currently reserved by LIVE profile-level mcp-client instances.
+ * The loader mounts these outside dsh-mcp-mgr, so mcp-client's own global
+ * uniqueness check rejects any workspace instance mounting the same name —
+ * surfaces the reservation so workspace rows flag conflict instead of failing.
+ */
+export function profileServerNames(entries: readonly LoaderEntryView[]): Set<string> {
+  const names = new Set<string>()
+  for (const entry of entries) {
+    const options = entry.options ?? {}
+    if (options.disabled === true) continue
+    if (!MCP_CLIENT_ENTRY_NAMES.has(String(options.name))) continue
+    const name = options.config?.serverName
+    if (name === undefined) continue
+    if (entry.fiber?.state === FIBER_ACTIVE) names.add(name)
+  }
+  return names
+}
+
+/**
  * Project profile-level mcp-client registrations as read-only server rows.
  * Loader entries carry the resolved config and the live fiber, so status is
  * real: active fiber -> active, failed fiber -> error (e.g. duplicate

@@ -8,7 +8,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { TYPERT_REMOTE } from 'dsh-mcp-mgr/remote'
-import type { McpApplyResult, McpManagerSnapshot } from 'dsh-mcp-mgr/types'
+import type { McpApplyResult, McpManagerSnapshot, McpServerDraft } from 'dsh-mcp-mgr/types'
 import { loadStrictMode, McpSettingsTab, type McpSettingsTabInjected } from './McpSettingsTab.tsx'
 import { en, zh, type McpLocaleKey } from './locales.ts'
 
@@ -32,6 +32,7 @@ export const inject = ['slots', 'locale', 'remote', 'connection', 'sessions', 'w
 /** The namespace service this plugin mounts itself — fetched via `ctx.get`, never injected. */
 interface McpMgrNamespace {
   snapshot(): Promise<RemoteResult<McpManagerSnapshot>>
+  apply(draft: McpServerDraft): Promise<RemoteResult<McpApplyResult>>
   removeServer(workspace: string, name: string): Promise<RemoteResult<McpApplyResult>>
   setStrictMode(enabled: boolean): Promise<RemoteResult<McpManagerSnapshot>>
   setActiveWorkspace(path: string): Promise<RemoteResult<McpManagerSnapshot>>
@@ -115,6 +116,13 @@ export async function apply(ctx: ClientContext): Promise<void> {
       }
       return result.value
     },
+    apply: async (draft) => {
+      const result = await mcpMgr().apply(draft)
+      if (!result.ok) {
+        throw new Error(`mcpMgr.apply failed: ${result.error.code}: ${result.error.message}`)
+      }
+      return result.value
+    },
     removeServer: async (workspace, name) => {
       const result = await mcpMgr().removeServer(workspace, name)
       if (!result.ok) {
@@ -123,6 +131,16 @@ export async function apply(ctx: ClientContext): Promise<void> {
       return result.value
     },
     setStrictMode,
+    listWorkspaces: () => ctx.workspaces.list.getSnapshot().items.map(workspace => ({
+      path: workspace.path,
+      title: workspace.title,
+    })),
+    currentWorkspacePath: () => {
+      const current = ctx.sessions.list.getSnapshot().current
+      if (current === undefined) return ''
+      return ctx.workspaces.list.getSnapshot().items
+        .find(workspace => workspace.sessionIds.includes(current))?.path ?? ''
+    },
     openSourceFile: async (sourceFile) => {
       const connection = ctx.get('connection') as ConnectionHandle | undefined
       if (connection === undefined) {

@@ -15,6 +15,7 @@
     "types": ["node"],
     "paths": {
       "@deepseek-ai/dsh-mcp-client": ["./stub/mcp-client.d.ts"],
+      "@deepseek-ai/dsh-scope": ["./stub/dsh-scope.d.ts"],
       "@deepseek-ai/dsh-typert-protocol": ["../../../vendor-typert-protocol/src/index.ts"],
       "@deepseek-ai/dsh-typert-protocol/types": ["../../../vendor-typert-protocol/src/types.ts"]
     },

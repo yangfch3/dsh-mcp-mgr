@@ -53,7 +53,7 @@ console.log('sync:')
   const created = []
   const disposed = []
   const fake = {
-    create: async config => { created.push(config.serverName); return { id: config.serverName } },
+    create: async config => { created.push(config.serverName); return { fiber: { id: config.serverName }, connected: true } },
     dispose: async fiber => { disposed.push(fiber.id) },
   }
   const sync = new McpSync(fake, { onChange: () => undefined })
@@ -83,6 +83,37 @@ console.log('sync:')
   // workspace removal
   await sync.removeWorkspace('/ws2')
   check('conflict workspace removed', sync.snapshot().every(s => s.workspace === '/ws'))
+  // profile-reserved name: conflict without mounting
+  sync.setReservedNames(new Set(['reserved-name']))
+  await sync.syncWorkspace({ workspacePath: '/ws3', servers: [srv('reserved-name', 'x')] })
+  const reservedRow = sync.snapshot().find(s => s.key === '/ws3#reserved-name')
+  check('profile-reserved name flagged conflict', reservedRow?.status === 'conflict' && !created.includes('reserved-name'))
+  // reservation cleared: the conflict row mounts on the next pass
+  sync.setReservedNames(new Set())
+  await sync.syncWorkspace({ workspacePath: '/ws3', servers: [srv('reserved-name', 'x')] })
+  check('conflict remounts after reservation cleared', sync.snapshot().find(s => s.name === 'reserved-name')?.status === 'active')
+  // connectivity refresh flips when a server's tools appear after mount
+  const late = new McpSync({ create: async () => ({ fiber: { id: 'late' }, connected: false }), dispose: async () => undefined }, { onChange: () => undefined })
+  await late.syncWorkspace({ workspacePath: '/ws', servers: [srv('late', 'x')] })
+  check('server down at mount starts unconnected', late.snapshot().find(s => s.name === 'late')?.connected === false)
+  const flipped = late.refreshConnectivity(() => true)
+  check('refreshConnectivity flips to connected', flipped && late.snapshot().find(s => s.name === 'late')?.connected === true)
+  late.refreshConnectivity(() => false)
+  check('refreshConnectivity flips back on tool loss', late.snapshot().find(s => s.name === 'late')?.connected === false)
+}
+
+// ── 2b. draft validation ───────────────────────────────────────────────────
+console.log('draft validation:')
+{
+  const { validateDraft } = await import(join(root, './packages/dsh-mcp-mgr/lib/types/parse.js'))
+  check('valid stdio draft', validateDraft({ name: 'ok_name-1', transport: 'stdio', command: 'npx' }) === undefined)
+  check('valid http draft', validateDraft({ name: 'a', transport: 'streamable-http', url: 'http://x' }) === undefined)
+  check('bad name rejected', validateDraft({ name: 'bad.name', transport: 'stdio', command: 'x' }) !== undefined)
+  check('missing command rejected', validateDraft({ name: 'a', transport: 'stdio' }) !== undefined)
+  check('blank command rejected', validateDraft({ name: 'a', transport: 'stdio', command: '  ' }) !== undefined)
+  check('missing url rejected', validateDraft({ name: 'a', transport: 'streamable-http' }) !== undefined)
+  check('non-string env rejected', validateDraft({ name: 'a', transport: 'stdio', command: 'x', env: { K: 1 } }) !== undefined)
+  check('non-string header rejected', validateDraft({ name: 'a', transport: 'streamable-http', url: 'http://x', headers: { A: 1 } }) !== undefined)
 }
 
 // ── 3. profile entry scan ───────────────────────────────────────────────────

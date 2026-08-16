@@ -20,12 +20,21 @@ export interface McpInstance {
   status: McpServerStatus
   error?: string
   fiber?: unknown
+  /** True when the factory probed real connectivity (tools registered). */
+  connected?: boolean
+  /** Reason the connectivity probe could not run/complete (shown on the row). */
+  probeError?: string
 }
 
 /** Factory contract: mount one mcp-client instance. */
 export interface InstanceFactory {
-  /** Create one plugin instance; resolves once its fiber activates. */
-  create(config: McpClientConfig): Promise<unknown>
+  /**
+   * Create one plugin instance; resolves once its fiber activates. The
+   * `connected` flag reports whether real connectivity was probed (tools
+   * registered), distinguishing a live server from one that merely activated;
+   * `probeError` carries the reason when the probe could not run.
+   */
+  create(config: McpClientConfig): Promise<{ fiber: unknown; connected?: boolean; probeError?: string }>
   /** Dispose a previously created fiber. */
   dispose(fiber: unknown): Promise<void>
 }
@@ -51,10 +60,21 @@ export class McpSync {
   private readonly factory: InstanceFactory
   private readonly events: SyncEvents
   private syncing: Promise<void> = Promise.resolve()
+  /** serverNames live outside this sync (profile-level instances). */
+  private reserved = new Set<string>()
 
   constructor(factory: InstanceFactory, events: SyncEvents) {
     this.factory = factory
     this.events = events
+  }
+
+  /**
+   * Declare serverNames that are mounted elsewhere (profile-level mcp-client
+   * instances): workspace servers with these names flag conflict instead of
+   * mounting, matching mcp-client's global uniqueness rule.
+   */
+  setReservedNames(names: ReadonlySet<string>): void {
+    this.reserved = new Set(names)
   }
 
   /**
@@ -90,6 +110,28 @@ export class McpSync {
     return this.syncWorkspace({ workspacePath, servers: [] })
   }
 
+  /**
+   * Re-probe live instances' connectivity (tools registered). A server that
+   * was down at mount keeps its initial `connected: false` while mcp-client
+   * reconnects in the background; this flips the flag once its tools appear
+   * (and back when a final failure unregisters them).
+   * @param probe - resolves one serverName to its current connectivity.
+   * @returns whether any instance changed.
+   */
+  refreshConnectivity(probe: (serverName: string) => boolean): boolean {
+    let changed = false
+    for (const instance of this.instances.values()) {
+      if (instance.status !== 'active') continue
+      const connected = probe(instance.name)
+      if (connected !== instance.connected) {
+        instance.connected = connected
+        changed = true
+      }
+    }
+    if (changed) this.events.onChange()
+    return changed
+  }
+
   /** Current live instance projection, sorted by workspace then name. */
   snapshot(): McpServerState[] {
     return [...this.instances.values()]
@@ -102,6 +144,8 @@ export class McpSync {
         name: instance.name,
         transport: instance.config.transport,
         status: instance.status,
+        ...(instance.connected === undefined ? {} : { connected: instance.connected }),
+        ...(instance.probeError === undefined ? {} : { probeError: instance.probeError }),
         ...(instance.error === undefined ? {} : { error: instance.error }),
       }))
   }
@@ -109,7 +153,9 @@ export class McpSync {
   private async upsertInstance(workspacePath: string, name: string, config: McpClientConfig): Promise<void> {
     const key = `${workspacePath}#${name}`
     const existing = this.instances.get(key)
-    if (existing !== undefined && sameConfig(existing.config, config)) return
+    // A conflict row re-evaluates every pass: when the blocker (workspace
+    // owner or profile reservation) clears, it mounts without a config change.
+    if (existing !== undefined && sameConfig(existing.config, config) && existing.status !== 'conflict') return
     if (existing !== undefined) {
       await this.removeInstance(existing)
     }
@@ -126,6 +172,17 @@ export class McpSync {
       })
       return
     }
+    if (this.reserved.has(name)) {
+      this.instances.set(key, {
+        key,
+        workspacePath,
+        name,
+        config,
+        status: 'conflict',
+        error: `serverName "${name}" is already used by a profile-level mcp-client instance`,
+      })
+      return
+    }
     const instance: McpInstance = {
       key,
       workspacePath,
@@ -136,7 +193,10 @@ export class McpSync {
     this.instances.set(key, instance)
     this.ownerByServerName.set(name, key)
     try {
-      instance.fiber = await this.factory.create(config)
+      const created = await this.factory.create(config)
+      instance.fiber = created.fiber
+      if (created.connected !== undefined) instance.connected = created.connected
+      if (created.probeError !== undefined) instance.probeError = created.probeError
       instance.status = 'active'
     } catch (error) {
       instance.status = 'error'

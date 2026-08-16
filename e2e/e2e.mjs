@@ -12,11 +12,11 @@ import { McpMgrGateway } from '../packages/dsh-mcp-mgr/lib/types/index.js'
 import { waitFor } from './wait-for.mjs'
 
 class FakeTools extends Service {
-  constructor(ctx) { super(ctx, 'tools') }
+  constructor(ctx) { super(ctx, 'tools'); this.names = new Set() }
   get() { return undefined }
-  register() {}
-  unregister() {}
-  schemas() { return [] }
+  register(definition) { this.names.add(definition.name) }
+  unregister(definition) { this.names.delete(definition.name) }
+  schemas() { return [...this.names].map(name => ({ name })) }
   execute() { throw new Error('unused') }
 }
 
@@ -44,8 +44,15 @@ try {
     console.error('FAIL: server did not reach active, error:', state.error)
     process.exit(1)
   }
-  // The real mcp-client registers tools on ctx.tools; our fake records nothing,
-  // so we verify through the sync layer + a real tool execute is out of scope.
+  // Real connectivity probe: the mounted server's tools must have registered,
+  // so the snapshot row reports connected = true.
+  if (state.connected !== true) {
+    console.error('FAIL: connected probe did not find tools (connected =', state.connected, ')')
+    process.exit(1)
+  }
+  console.log('connected probe: true')
+  // The real mcp-client registers tools on ctx.tools; the fake records names,
+  // so a real tool execute is out of scope.
   // Instead: mutate mcp.json and confirm the instance is rebuilt.
   writeFileSync(mcpJson, JSON.stringify({
     mcpServers: {

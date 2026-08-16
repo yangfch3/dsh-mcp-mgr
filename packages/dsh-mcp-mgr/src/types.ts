@@ -27,6 +27,13 @@ export interface McpServerState {
   readonly status: McpServerStatus
   /** Human-readable failure text when status is error/conflict. */
   readonly error?: string
+  /**
+   * Workspace instances only: whether real connectivity was probed at mount
+   * (the server's tools are registered). Absent for profile rows.
+   */
+  readonly connected?: boolean
+  /** Why the connectivity probe could not run/complete (workspace rows only). */
+  readonly probeError?: string
   /** Workspace source only: directory that contributed this server. */
   readonly workspace?: string
   /** Profile source only: config file declaring the entry. */

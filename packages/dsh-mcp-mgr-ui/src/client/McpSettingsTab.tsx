@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { McpApplyResult, McpManagerSnapshot, McpServerState } from 'dsh-mcp-mgr/types'
+import type { McpApplyResult, McpManagerSnapshot, McpServerDraft, McpServerState, McpServerStatus } from 'dsh-mcp-mgr/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { McpServerForm } from './McpServerForm.tsx'
 import type { McpLocaleKey } from './locales.ts'
 import css from './McpSettingsTab.module.css'
 
@@ -14,16 +15,28 @@ export function loadStrictMode(): boolean | null {
   return stored === '1'
 }
 
+/** One workspace row the add-form may target. */
+export interface WorkspaceOption {
+  readonly path: string
+  readonly title: string
+}
+
 /** Registration-side Remote face used by the tab. */
 export interface McpSettingsTabInjected {
   /** Read a current manager snapshot. */
   snapshot: () => Promise<McpManagerSnapshot>
+  /** Create one server entry in a workspace's mcp.json. */
+  apply: (draft: McpServerDraft) => Promise<McpApplyResult>
   /** Remove one server from a workspace's mcp.json. */
   removeServer: (workspace: string, name: string) => Promise<McpApplyResult>
   /** Open a profile config file with the Host's default application. */
   openSourceFile: (sourceFile: string) => Promise<void>
   /** Toggle strict mode host-side; resolves with the post-change snapshot. */
   setStrictMode: (enabled: boolean) => Promise<McpManagerSnapshot>
+  /** Registered workspaces for the add-form target picker. */
+  listWorkspaces: () => readonly WorkspaceOption[]
+  /** Workspace of the currently open session ('' when none). */
+  currentWorkspacePath: () => string
 }
 
 /** Full component props assembled by the Settings slot renderer. */
@@ -37,15 +50,26 @@ type ViewState =
   | { readonly status: 'error' }
   | { readonly status: 'ready'; readonly snapshot: McpManagerSnapshot }
 
-/** Status label key shared with the server-state projection. */
-const STATUS_KEYS = {
+/** Badge label key for one display status (raw status + connectivity derivation). */
+const DISPLAY_KEYS = {
+  connected: 'connected',
+  registered: 'active',
   connecting: 'connecting',
   active: 'active',
   error: 'errorStatus',
   conflict: 'conflict',
   removing: 'removing',
   configured: 'configured',
-} satisfies Record<McpServerState['status'], McpLocaleKey>
+} satisfies Record<DisplayStatus, McpLocaleKey>
+
+/** Display status: an 'active' row reports real connectivity when probed. */
+type DisplayStatus = 'connected' | 'registered' | McpServerStatus
+
+function displayStatus(server: McpServerState): DisplayStatus {
+  return server.status === 'active'
+    ? (server.connected === true ? 'connected' : 'registered')
+    : server.status
+}
 
 /**
  * Short display form of a source path: last path segment by default, last two
@@ -59,13 +83,16 @@ function shortPath(path: string, forceLastTwo = false): string {
 }
 
 /** Render the currently registered MCP servers (workspace + profile sources). */
-export function McpSettingsTab({ snapshot, removeServer, openSourceFile, setStrictMode, t }: McpSettingsTabProps): ReactNode {
+export function McpSettingsTab({
+  snapshot, apply, removeServer, openSourceFile, setStrictMode, listWorkspaces, currentWorkspacePath, t,
+}: McpSettingsTabProps): ReactNode {
   const [request, setRequest] = useState(0)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [strictMode, setStrictModeState] = useState<boolean>(() => loadStrictMode() ?? false)
+  const [showForm, setShowForm] = useState(false)
 
   useEffect(() => {
     let current = true
@@ -112,15 +139,25 @@ export function McpSettingsTab({ snapshot, removeServer, openSourceFile, setStri
     if (server.workspace === undefined) return
     setBusy(server.key)
     setNotice(null)
+    let result: McpApplyResult
     try {
-      const result = await removeServer(server.workspace, server.name)
-      setNotice(result.ok ? t('removed') : `${t('applyFailed')}: ${result.error}`)
+      result = await removeServer(server.workspace, server.name)
     } catch (error) {
-      setNotice(`${t('applyFailed')}: ${String(error instanceof Error ? error.message : error)}`)
-    } finally {
       setBusy(null)
-      retry()
+      setNotice(`${t('applyFailed')}: ${String(error instanceof Error ? error.message : error)}`)
+      return
     }
+    setBusy(null)
+    setState({ status: 'loading' })
+    setRequest(value => value + 1)
+    setNotice(result.ok ? t('removed') : `${t('applyFailed')}: ${result.error}`)
+  }
+
+  const onAdded = (_workspace: string): void => {
+    setShowForm(false)
+    setState({ status: 'loading' })
+    setRequest(value => value + 1)
+    setNotice(strictMode ? t('addedStrict') : t('added'))
   }
 
   const onView = async (server: McpServerState): Promise<void> => {
@@ -163,9 +200,28 @@ export function McpSettingsTab({ snapshot, removeServer, openSourceFile, setStri
             />
             {t('strictMode')}
           </label>
+          <button
+            type="button"
+            className={css.add}
+            disabled={listWorkspaces().length === 0}
+            title={t('noWorkspace')}
+            onClick={() => { setShowForm(true) }}
+          >
+            {t('add')}
+          </button>
           <button type="button" className={css.refresh} onClick={retry}>{t('refresh')}</button>
         </div>
       </div>
+      {showForm ? (
+        <McpServerForm
+          workspaces={listWorkspaces()}
+          defaultWorkspace={currentWorkspacePath()}
+          submit={apply}
+          t={t}
+          onClose={() => { setShowForm(false) }}
+          onAdded={onAdded}
+        />
+      ) : null}
       {state.status === 'loading' ? <p className={css.status}>{t('loading')}</p> : null}
       {state.status === 'error' ? (
         <div className={css.failure}>
@@ -204,10 +260,29 @@ export function McpSettingsTab({ snapshot, removeServer, openSourceFile, setStri
                   <td className={css.nowrapCell} title={server.name}>{server.name}</td>
                   <td className={css.nowrapCell}>{server.transport}</td>
                   <td className={css.nowrapCell}>
-                    <span className={css.statusBadge} data-status={server.status}>
-                      {t(STATUS_KEYS[server.status])}
-                    </span>
-                    {server.error !== undefined ? <span className={css.errorText} title={server.error}>{server.error}</span> : null}
+                    {(() => {
+                      const status = displayStatus(server)
+                      return (
+                        <>
+                          <span
+                            className={css.statusBadge}
+                            data-status={status}
+                            title={
+                              status === 'connected' ? t('connectedHint')
+                                : status === 'registered' ? t('activeHint')
+                                : undefined
+                            }
+                          >
+                            {t(DISPLAY_KEYS[status])}
+                          </span>
+                          {server.error !== undefined
+                            ? <span className={css.errorText} title={server.error}>{server.error}</span>
+                            : status === 'registered' && server.probeError !== undefined
+                              ? <span className={css.errorText} title={server.probeError}>{server.probeError}</span>
+                              : null}
+                        </>
+                      )
+                    })()}
                   </td>
                   <td className={css.nowrapCell}>
                     {server.source === 'workspace' ? (
