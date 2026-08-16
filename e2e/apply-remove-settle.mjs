@@ -58,6 +58,16 @@ try {
   const removed = await gateway.removeServer(workspace, 'probe')
   check('removeServer ok', removed.ok)
   check('removed server gone after removeServer resolves', !gateway.snapshot().servers.some(s => s.name === 'probe'))
+
+  // Enable/disable round trip: disable unmounts, re-enable remounts.
+  const disabled = await gateway.setServerEnabled(workspace, 'second', false)
+  check('setServerEnabled(false) ok', disabled.ok)
+  const disabledRow = gateway.snapshot().servers.find(s => s.name === 'second')
+  check('disabled row present and unmounted', disabledRow?.enabled === false && disabledRow?.status === 'disabled')
+  const enabled = await gateway.setServerEnabled(workspace, 'second', true)
+  check('setServerEnabled(true) ok', enabled.ok)
+  const enabledRow = gateway.snapshot().servers.find(s => s.name === 'second')
+  check('re-enabled row mounted again', enabledRow?.enabled !== false && enabledRow?.status === 'active')
 } finally {
   await ctx.fiber.dispose()
   rmSync(workspace, { recursive: true, force: true })

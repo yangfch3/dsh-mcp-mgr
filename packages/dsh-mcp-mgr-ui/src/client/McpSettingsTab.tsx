@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { McpApplyResult, McpManagerSnapshot, McpServerDraft, McpServerState, McpServerStatus } from 'dsh-mcp-mgr/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { McpServerForm } from './McpServerForm.tsx'
 import type { McpLocaleKey } from './locales.ts'
 import css from './McpSettingsTab.module.css'
@@ -29,6 +30,8 @@ export interface McpSettingsTabInjected {
   apply: (draft: McpServerDraft) => Promise<McpApplyResult>
   /** Remove one server from a workspace's mcp.json. */
   removeServer: (workspace: string, name: string) => Promise<McpApplyResult>
+  /** Enable/disable one server in a workspace's mcp.json. */
+  setServerEnabled: (workspace: string, name: string, enabled: boolean) => Promise<McpApplyResult>
   /** Open a profile config file with the Host's default application. */
   openSourceFile: (sourceFile: string) => Promise<void>
   /** Toggle strict mode host-side; resolves with the post-change snapshot. */
@@ -60,6 +63,7 @@ const DISPLAY_KEYS = {
   conflict: 'conflict',
   removing: 'removing',
   configured: 'configured',
+  disabled: 'disabled',
 } satisfies Record<DisplayStatus, McpLocaleKey>
 
 /** Display status: an 'active' row reports real connectivity when probed. */
@@ -84,7 +88,7 @@ function shortPath(path: string, forceLastTwo = false): string {
 
 /** Render the currently registered MCP servers (workspace + profile sources). */
 export function McpSettingsTab({
-  snapshot, apply, removeServer, openSourceFile, setStrictMode, listWorkspaces, currentWorkspacePath, t,
+  snapshot, apply, removeServer, setServerEnabled, openSourceFile, setStrictMode, listWorkspaces, currentWorkspacePath, t,
 }: McpSettingsTabProps): ReactNode {
   const [request, setRequest] = useState(0)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
@@ -160,6 +164,24 @@ export function McpSettingsTab({
     setNotice(strictMode ? t('addedStrict') : t('added'))
   }
 
+  const onToggleEnabled = async (server: McpServerState, enabled: boolean): Promise<void> => {
+    if (server.workspace === undefined) return
+    setBusy(server.key)
+    setNotice(null)
+    let result: McpApplyResult
+    try {
+      result = await setServerEnabled(server.workspace, server.name, enabled)
+    } catch (error) {
+      setBusy(null)
+      setNotice(`${t('applyFailed')}: ${String(error instanceof Error ? error.message : error)}`)
+      return
+    }
+    setBusy(null)
+    setState({ status: 'loading' })
+    setRequest(value => value + 1)
+    setNotice(result.ok ? (enabled ? t('enabled') : t('disabled')) : `${t('applyFailed')}: ${result.error}`)
+  }
+
   const onView = async (server: McpServerState): Promise<void> => {
     if (server.sourceFile === undefined) return
     setBusy(server.key)
@@ -188,7 +210,8 @@ export function McpSettingsTab({
 
   return (
     <div className={css.section} aria-busy={state.status === 'loading'}>
-      {notice !== null ? <p className={css.notice} role="status">{notice}</p> : null}
+      {/* Transient result feedback: floats over the viewport, never pushes the table. */}
+      {notice !== null ? <Toast text={notice} onDone={() => { setNotice(null) }} /> : null}
       <div className={css.heading}>
         <h3>{t('server')}</h3>
         <div className={css.headingActions}>
@@ -250,9 +273,6 @@ export function McpSettingsTab({
               return (
                 <tr key={server.key} data-source={server.source}>
                   <td className={css.sourceCell}>
-                    <span className={css.sourceChip} data-source={server.source}>
-                      {t(server.source === 'workspace' ? 'sourceWorkspace' : 'sourceConfig')}
-                    </span>
                     {fullPath !== undefined
                       ? <span className={css.sourcePath} title={fullPath}>{sourceDisplay.get(server.key)}</span>
                       : null}
@@ -286,14 +306,24 @@ export function McpSettingsTab({
                   </td>
                   <td className={css.nowrapCell}>
                     {server.source === 'workspace' ? (
-                      <button
-                        type="button"
-                        className={css.danger}
-                        disabled={busy === server.key}
-                        onClick={() => { void onRemove(server) }}
-                      >
-                        {t('remove')}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className={css.toggle}
+                          disabled={busy === server.key}
+                          onClick={() => { void onToggleEnabled(server, server.enabled === false) }}
+                        >
+                          {server.enabled === false ? t('enable') : t('disable')}
+                        </button>
+                        <button
+                          type="button"
+                          className={css.danger}
+                          disabled={busy === server.key}
+                          onClick={() => { void onRemove(server) }}
+                        >
+                          {t('remove')}
+                        </button>
+                      </>
                     ) : server.sourceFile !== undefined ? (
                       <button
                         type="button"

@@ -242,6 +242,47 @@ export class McpMgrGateway extends TypertRemoteService {
   }
 
   /**
+   * Enable or disable one server entry in a workspace's mcp.json. Disabling
+   * writes `enabled: false`; enabling removes the field (absent = enabled).
+   * Resolves only after the resync settles, so the caller's follow-up
+   * snapshot already reflects the mounted/unmounted state.
+   */
+  @Remote('setServerEnabled')
+  async setServerEnabled(workspace: string, serverName: string, enabled: boolean): Promise<McpApplyResult> {
+    // Canonical path shared by the file write and the parse-cache key.
+    const workspacePath = realpathSync(workspace)
+    const path = mcpJsonPath(workspacePath)
+    if (!hasManagerFile(workspacePath)) {
+      return { ok: false, error: `no mcp.json under ${workspacePath}` }
+    }
+    try {
+      const document = JSON.parse(readFileSync(path, 'utf8')) as { mcpServers?: Record<string, unknown> }
+      const servers = document.mcpServers
+      if (servers === undefined || typeof servers !== 'object' || Array.isArray(servers)) {
+        return { ok: false, error: 'mcpServers must be an object' }
+      }
+      const entry = servers[serverName]
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+        return { ok: false, error: `serverName "${serverName}" not found in ${workspacePath}` }
+      }
+      const entryRecord = entry as Record<string, unknown>
+      if (enabled) {
+        delete entryRecord.enabled
+      } else {
+        entryRecord.enabled = false
+      }
+      atomicWriteJson(path, document)
+    } catch (error) {
+      return { ok: false, error: `write failed: ${String(error instanceof Error ? error.message : error)}` }
+    }
+    // Invalidate the cached parse so the resync below applies the new flag
+    // instead of replaying the pre-write state.
+    this.parseCache.delete(workspacePath)
+    await this.runRescan()
+    return { ok: true }
+  }
+
+  /**
    * Serialize rescan passes: a Remote-triggered pass must apply after any
    * in-flight one settles (a skipped pass would drop the newest selection).
    * @returns resolution after this queued pass settles.

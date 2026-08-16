@@ -58,10 +58,6 @@
   gap: 12px;
 }
 
-.notice {
-  margin: 0;
-}
-
 .table {
   width: 100%;
   table-layout: fixed;
@@ -78,43 +74,24 @@
   overflow: hidden;
 }
 
-.table th:nth-child(1) { width: 36%; }
-.table th:nth-child(2) { width: 20%; }
-.table th:nth-child(3) { width: 16%; }
-.table th:nth-child(4) { width: 14%; }
-.table th:nth-child(5) { width: 14%; }
+.table th:nth-child(1) { width: 24%; }
+.table th:nth-child(2) { width: 18%; }
+.table th:nth-child(3) { width: 14%; }
+.table th:nth-child(4) { width: 20%; }
+.table th:nth-child(5) { width: 24%; }
 
-/* Profile-sourced rows get a subtle tint to tell them apart. */
+/* Profile-sourced rows get a subtle tint to tell them apart (workspace = plain). */
 .table tr[data-source='profile'] td {
-  background: color-mix(in srgb, currentColor 4%, transparent);
+  background: color-mix(in srgb, currentColor 6%, transparent);
 }
 
 .sourceCell {
   white-space: nowrap;
 }
 
-.sourceChip {
-  display: inline-block;
-  margin-right: 6px;
-  padding: 0 6px;
-  border-radius: 4px;
-  font-size: 0.8em;
-  vertical-align: 1px;
-}
-
-.sourceChip[data-source='workspace'] {
-  background: color-mix(in srgb, #2e6b9e 16%, transparent);
-  color: #2e6b9e;
-}
-
-.sourceChip[data-source='profile'] {
-  background: color-mix(in srgb, #8a6d3b 16%, transparent);
-  color: #8a6d3b;
-}
-
 .sourcePath {
   display: inline-block;
-  max-width: calc(100% - 52px);
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
@@ -167,6 +144,11 @@
   opacity: 0.7;
 }
 
+.statusBadge[data-status='disabled'] {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  opacity: 0.55;
+}
+
 .errorText {
   display: block;
   margin-top: 2px;
@@ -190,6 +172,26 @@
 }
 
 .danger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Enable/disable toggle: neutral ghost, sits beside the remove button. */
+.toggle {
+  margin-right: 6px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-radius: 4px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
+.toggle:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.toggle:disabled {
   opacity: 0.5;
   cursor: default;
 }

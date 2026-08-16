@@ -16,6 +16,8 @@ export interface McpInstance {
   readonly key: string
   readonly workspacePath: string
   readonly name: string
+  /** Whether the mcp.json entry is enabled; a disabled instance never mounts. */
+  readonly enabled: boolean
   readonly config: McpClientConfig
   status: McpServerStatus
   error?: string
@@ -47,7 +49,7 @@ export interface SyncEvents {
 /** Desired state for one workspace. */
 export interface DesiredWorkspace {
   readonly workspacePath: string
-  readonly servers: readonly { readonly name: string; readonly config: McpClientConfig }[]
+  readonly servers: readonly { readonly name: string; readonly enabled: boolean; readonly config: McpClientConfig }[]
 }
 
 /**
@@ -95,7 +97,7 @@ export class McpSync {
         await this.removeInstance(instance)
       }
       for (const server of desired.servers) {
-        await this.upsertInstance(desired.workspacePath, server.name, server.config)
+        await this.upsertInstance(desired.workspacePath, server.name, server.enabled, server.config)
       }
       this.events.onChange()
     }
@@ -142,6 +144,7 @@ export class McpSync {
         source: 'workspace' as const,
         workspace: instance.workspacePath,
         name: instance.name,
+        enabled: instance.enabled,
         transport: instance.config.transport,
         status: instance.status,
         ...(instance.connected === undefined ? {} : { connected: instance.connected }),
@@ -150,14 +153,31 @@ export class McpSync {
       }))
   }
 
-  private async upsertInstance(workspacePath: string, name: string, config: McpClientConfig): Promise<void> {
+  private async upsertInstance(workspacePath: string, name: string, enabled: boolean, config: McpClientConfig): Promise<void> {
     const key = `${workspacePath}#${name}`
     const existing = this.instances.get(key)
     // A conflict row re-evaluates every pass: when the blocker (workspace
     // owner or profile reservation) clears, it mounts without a config change.
-    if (existing !== undefined && sameConfig(existing.config, config) && existing.status !== 'conflict') return
+    // A disabled row must also re-evaluate: re-enabling mounts even though
+    // the mcp-client config is unchanged.
+    if (existing !== undefined && enabled && sameConfig(existing.config, config)
+      && existing.status !== 'conflict' && existing.status !== 'disabled') return
+    if (existing !== undefined && !enabled && existing.status === 'disabled') return
     if (existing !== undefined) {
       await this.removeInstance(existing)
+    }
+    if (!enabled) {
+      // Disabled: keep the row visible but never mount and never hold the
+      // serverName — an enabled sibling in another workspace stays conflict-free.
+      this.instances.set(key, {
+        key,
+        workspacePath,
+        name,
+        enabled: false,
+        config,
+        status: 'disabled',
+      })
+      return
     }
     const owner = this.ownerByServerName.get(name)
     if (owner !== undefined && owner !== key) {
@@ -166,6 +186,7 @@ export class McpSync {
         key,
         workspacePath,
         name,
+        enabled: true,
         config,
         status: 'conflict',
         error: `serverName "${name}" is already used by workspace ${ownerWorkspace}`,
@@ -177,6 +198,7 @@ export class McpSync {
         key,
         workspacePath,
         name,
+        enabled: true,
         config,
         status: 'conflict',
         error: `serverName "${name}" is already used by a profile-level mcp-client instance`,
@@ -187,6 +209,7 @@ export class McpSync {
       key,
       workspacePath,
       name,
+      enabled: true,
       config,
       status: 'connecting',
     }

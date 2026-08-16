@@ -60,6 +60,7 @@ The plugin auto-detects `.dsh/dshmm/mcp.json` at the workspace root, for example
 - A missing `type` is treated as remote Streamable HTTP; `${VAR}` environment expansion is supported
 - The stdio server's cwd defaults to the workspace root
 - `serverName` must be globally unique; a later duplicate fails loudly (flagged as a conflict in the UI)
+- Set `"enabled": false` on an entry to disable it without removing it (absent means enabled); the settings tab's toggle writes this field
 
 ## Development
 

@@ -14,6 +14,7 @@ export type McpServerStatus =
   | 'conflict'
   | 'removing'
   | 'configured'
+  | 'disabled'
 
 /** One dynamically registered MCP server as seen by the UI. */
 export interface McpServerState {
@@ -24,6 +25,8 @@ export interface McpServerState {
   /** serverName namespace (also the mcp.json entry name). */
   readonly name: string
   readonly transport: 'stdio' | 'streamable-http'
+  /** Workspace rows only: false when the mcp.json entry is disabled (`enabled: false`). */
+  readonly enabled?: boolean
   readonly status: McpServerStatus
   /** Human-readable failure text when status is error/conflict. */
   readonly error?: string

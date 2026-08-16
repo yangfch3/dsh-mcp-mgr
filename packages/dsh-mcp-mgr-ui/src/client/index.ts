@@ -34,6 +34,7 @@ interface McpMgrNamespace {
   snapshot(): Promise<RemoteResult<McpManagerSnapshot>>
   apply(draft: McpServerDraft): Promise<RemoteResult<McpApplyResult>>
   removeServer(workspace: string, name: string): Promise<RemoteResult<McpApplyResult>>
+  setServerEnabled(workspace: string, name: string, enabled: boolean): Promise<RemoteResult<McpApplyResult>>
   setStrictMode(enabled: boolean): Promise<RemoteResult<McpManagerSnapshot>>
   setActiveWorkspace(path: string): Promise<RemoteResult<McpManagerSnapshot>>
 }
@@ -127,6 +128,13 @@ export async function apply(ctx: ClientContext): Promise<void> {
       const result = await mcpMgr().removeServer(workspace, name)
       if (!result.ok) {
         throw new Error(`mcpMgr.removeServer failed: ${result.error.code}: ${result.error.message}`)
+      }
+      return result.value
+    },
+    setServerEnabled: async (workspace, name, enabled) => {
+      const result = await mcpMgr().setServerEnabled(workspace, name, enabled)
+      if (!result.ok) {
+        throw new Error(`mcpMgr.setServerEnabled failed: ${result.error.code}: ${result.error.message}`)
       }
       return result.value
     },

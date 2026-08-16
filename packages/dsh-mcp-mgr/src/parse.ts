@@ -13,6 +13,8 @@ import type { Config as McpClientConfig } from '@deepseek-ai/dsh-mcp-client'
 /** One successfully mapped server. */
 export interface ParsedServer {
   readonly name: string
+  /** Whether the entry is enabled (`enabled: false` disables; absent/other = enabled). */
+  readonly enabled: boolean
   readonly config: McpClientConfig
 }
 
@@ -96,6 +98,9 @@ export function parseMcpJson(text: string, workspacePath: string): ParseResult {
       errors.push({ name, message: 'entry must be an object' })
       continue
     }
+    // Explicit `enabled: false` disables; absent or any other value keeps the
+    // entry enabled (tolerant so hand-edited configs never surprise-disable).
+    const enabled = rawEntry.enabled !== false
     const transport = rawEntry.type === 'http' ? 'streamable-http' : 'stdio'
     if (transport === 'stdio') {
       const command = asString(rawEntry.command)
@@ -131,6 +136,7 @@ export function parseMcpJson(text: string, workspacePath: string): ParseResult {
       }
       servers.push({
         name,
+        enabled,
         config: {
           transport: 'stdio',
           serverName: name,
@@ -158,6 +164,7 @@ export function parseMcpJson(text: string, workspacePath: string): ParseResult {
       }
       servers.push({
         name,
+        enabled,
         config: {
           transport: 'streamable-http',
           serverName: name,

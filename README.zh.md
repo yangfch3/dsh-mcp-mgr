@@ -54,6 +54,7 @@ npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr
 - `type` 缺省视为远程 Streamable HTTP；支持 `${VAR}` 环境变量展开
 - stdio server 的 cwd 默认为工作区根目录
 - serverName 全局唯一，冲突时后加载者报错（UI 标冲突）
+- 条目加 `"enabled": false` 可禁用而不移除（缺省为启用）；设置页的开关即写入该字段
 
 ## 开发需知
 

@@ -27,6 +27,7 @@ console.log('parse:')
     mcpServers: {
       memory: { type: 'stdio', command: 'npx', args: ['-y', 'mcp-memory'], env: { TOKEN: '${MCP_TEST_TOKEN}' }, cwd: '/tmp/srv' },
       web: { type: 'http', url: 'http://localhost:3000/mcp', headers: { Authorization: 'Bearer x' } },
+      off: { type: 'stdio', command: 'npx', enabled: false },
       'bad.name': { command: 'x' },
       missingCmd: { type: 'stdio' },
       brokenEnv: { type: 'stdio', command: 'x', env: { K: '${MCP_TEST_MISSING_VAR}' } },
@@ -43,6 +44,8 @@ console.log('parse:')
   check('bad name rejected', parsed.errors.some(e => e.name === 'bad.name'))
   check('missing command rejected', parsed.errors.some(e => e.name === 'missingCmd'))
   check('missing env rejected', parsed.errors.some(e => e.name === 'brokenEnv'))
+  check('enabled defaults true when absent', parsed.servers.find(s => s.name === 'memory')?.enabled === true)
+  check('explicit enabled:false parsed', parsed.servers.find(s => s.name === 'off')?.enabled === false)
   check('expandEnv literal passthrough', expandEnv('hello', 'x').ok && expandEnv('hello', 'x').value === 'hello')
   delete process.env.MCP_TEST_TOKEN
 }
@@ -57,7 +60,7 @@ console.log('sync:')
     dispose: async fiber => { disposed.push(fiber.id) },
   }
   const sync = new McpSync(fake, { onChange: () => undefined })
-  const srv = (name, command) => ({ name, config: { transport: 'stdio', serverName: name, command, args: [], env: {}, cwd: '/ws', toolCallTimeoutMs: 60000, failOnStartupError: false } })
+  const srv = (name, command) => ({ name, enabled: true, config: { transport: 'stdio', serverName: name, command, args: [], env: {}, cwd: '/ws', toolCallTimeoutMs: 60000, failOnStartupError: false } })
   await sync.syncWorkspace({ workspacePath: '/ws', servers: [srv('a', 'cmd-a'), srv('b', 'cmd-b')] })
   check('two instances created', created.length === 2 && created.includes('a') && created.includes('b'))
   check('both active', sync.snapshot().every(s => s.status === 'active'))
@@ -100,6 +103,26 @@ console.log('sync:')
   check('refreshConnectivity flips to connected', flipped && late.snapshot().find(s => s.name === 'late')?.connected === true)
   late.refreshConnectivity(() => false)
   check('refreshConnectivity flips back on tool loss', late.snapshot().find(s => s.name === 'late')?.connected === false)
+  // enable/disable lifecycle (the disabled -> enabled churn trap)
+  const toggledCreated = []
+  const toggledDisposed = []
+  const toggled = new McpSync({
+    create: async config => { toggledCreated.push(config.serverName); return { fiber: { id: config.serverName }, connected: true } },
+    dispose: async fiber => { toggledDisposed.push(fiber.id) },
+  }, { onChange: () => undefined })
+  const off = (name, enabled) => ({ name, enabled, config: { transport: 'stdio', serverName: name, command: 'x', args: [], env: {}, cwd: '/ws', toolCallTimeoutMs: 60000, failOnStartupError: false } })
+  await toggled.syncWorkspace({ workspacePath: '/ws', servers: [off('t', false)] })
+  check('disabled entry stays unmounted as disabled row', toggledCreated.length === 0 && toggled.snapshot().find(s => s.name === 't')?.status === 'disabled')
+  await toggled.syncWorkspace({ workspacePath: '/ws', servers: [off('t', true)] })
+  check('re-enable mounts despite identical config', toggledCreated.length === 1 && toggled.snapshot().find(s => s.name === 't')?.status === 'active')
+  await toggled.syncWorkspace({ workspacePath: '/ws', servers: [off('t', false)] })
+  check('disable disposes the fiber', toggledDisposed.includes('t') && toggled.snapshot().find(s => s.name === 't')?.status === 'disabled')
+  // disabled rows do not hold the serverName: an enabled sibling mounts conflict-free
+  await toggled.syncWorkspace({ workspacePath: '/ws2', servers: [{ ...off('t', true), config: { ...off('t', true).config, command: 'y' } }] })
+  check('disabled row does not conflict with enabled sibling', toggled.snapshot().find(s => s.key === '/ws2#t')?.status === 'active')
+  // unchanged disabled state causes no churn
+  await toggled.syncWorkspace({ workspacePath: '/ws', servers: [off('t', false)] })
+  check('no churn on unchanged disabled entry', toggledDisposed.length === 1)
 }
 
 // ── 2b. draft validation ───────────────────────────────────────────────────
@@ -161,7 +184,7 @@ console.log('remote artifact:')
 {
   const contribution = (await import(join(root, './packages/dsh-mcp-mgr/lib/typert.remote-client.js'))).default
   check('package identity', contribution.package === 'dsh-mcp-mgr')
-  check('five methods', contribution.descriptors.length === 5)
+  check('six methods', contribution.descriptors.length === 6)
   check('removeServer not colliding name', contribution.descriptors.some(d => d.method === 'removeServer') && !contribution.descriptors.some(d => d.method === 'remove'))
   for (const d of contribution.descriptors) {
     check(`strict codec ${d.namespace}/${d.method}`, d.result.mode === 'strict')
@@ -172,6 +195,8 @@ console.log('remote artifact:')
   check('setStrictMode has boolean parameter', strictDesc.parameters.length === 1 && strictDesc.parameters[0].wire === 'enabled')
   const activeDesc = contribution.descriptors.find(d => d.method === 'setActiveWorkspace')
   check('setActiveWorkspace has path parameter', activeDesc.parameters.length === 1 && activeDesc.parameters[0].wire === 'path')
+  const toggleDesc = contribution.descriptors.find(d => d.method === 'setServerEnabled')
+  check('setServerEnabled has three parameters', toggleDesc.parameters.length === 3 && toggleDesc.parameters.map(p => p.wire).join(',') === 'workspace,serverName,enabled')
   const snapshotSchema = contribution.descriptors.find(d => d.method === 'snapshot').result.schema
   const parsedSnap = snapshotSchema.parse({ servers: [{ key: 'k', source: 'workspace', workspace: '/w', name: 'n', transport: 'stdio', status: 'active' }], watchedWorkspaces: ['/w'], strictMode: false, activeWorkspace: '' })
   check('snapshot codec accepts payload', parsedSnap.servers[0].name === 'n' && parsedSnap.strictMode === false)
@@ -183,6 +208,8 @@ console.log('remote artifact:')
     snapshotSchema.parse({ servers: [{ key: 'k', source: 'profile', name: 'n', transport: 'streamable-http', status: 'configured', sourceFile: '/x/cordis.patch.yml' }], watchedWorkspaces: [], strictMode: false, activeWorkspace: '' })
     check('snapshot codec accepts profile row', true)
   } catch { check('snapshot codec accepts profile row', false) }
+  const disabledSnap = snapshotSchema.parse({ servers: [{ key: 'k2', source: 'workspace', workspace: '/w', name: 'n2', enabled: false, transport: 'stdio', status: 'disabled' }], watchedWorkspaces: ['/w'], strictMode: false, activeWorkspace: '' })
+  check('snapshot codec accepts disabled row with enabled flag', disabledSnap.servers[0].enabled === false && disabledSnap.servers[0].status === 'disabled')
 }
 
 // ── 4. Real registry mount ──────────────────────────────────────────────────
