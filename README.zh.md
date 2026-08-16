@@ -63,6 +63,8 @@ tsc -p packages/dsh-mcp-mgr-ui && tsdown --config-loader tsx --env.DSH_BUILD_FAC
 node verify.mjs
 ```
 
+注意：改动 `src/types.ts`（wire 字段）后必须重跑 `gen.mjs` 并重打 UI bundle——typert 客户端 codec 过期时，严格 codec 会静默剥离未知字段（如 `connected` 丢失导致状态永远显示错误）。
+
 本地（源码）安装验证与卸载：
 
 ```sh

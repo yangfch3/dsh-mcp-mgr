@@ -66,6 +66,8 @@ tsc -p packages/dsh-mcp-mgr-ui && tsdown --config-loader tsx --env.DSH_BUILD_FAC
 node verify.mjs
 ```
 
+Note: after changing `src/types.ts` (wire fields) you MUST re-run `gen.mjs` and rebuild the UI bundle — a stale typert client codec silently strips unknown fields (e.g. a lost `connected` keeps the status wrong forever).
+
 Local (source) install verification and uninstall:
 
 ```sh
