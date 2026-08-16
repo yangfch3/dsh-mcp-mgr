@@ -80,9 +80,9 @@
 
 .table th:nth-child(1) { width: 36%; }
 .table th:nth-child(2) { width: 20%; }
-.table th:nth-child(3) { width: 12%; }
-.table th:nth-child(4) { width: 16%; }
-.table th:nth-child(5) { width: 16%; }
+.table th:nth-child(3) { width: 16%; }
+.table th:nth-child(4) { width: 14%; }
+.table th:nth-child(5) { width: 14%; }
 
 /* Profile-sourced rows get a subtle tint to tell them apart. */
 .table tr[data-source='profile'] td {
@@ -126,6 +126,12 @@
 
 /* Server names may reach 32 chars; keep them on one line. */
 .table td:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Transport values ("streamable-http") may exceed the column; ellipsize. */
+.table td:nth-child(3) {
   overflow: hidden;
   text-overflow: ellipsis;
 }

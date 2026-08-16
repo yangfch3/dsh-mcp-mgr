@@ -258,7 +258,7 @@ export function McpSettingsTab({
                       : null}
                   </td>
                   <td className={css.nowrapCell} title={server.name}>{server.name}</td>
-                  <td className={css.nowrapCell}>{server.transport}</td>
+                  <td className={css.nowrapCell} title={server.transport}>{server.transport}</td>
                   <td className={css.nowrapCell}>
                     {(() => {
                       const status = displayStatus(server)
