@@ -16,26 +16,22 @@ dsh 的工作区级 MCP 管理器：在每个工作区的 `.dsh/dshmm/mcp.json`�
 
 ## 安装、更新与卸载
 
-安装：
+安装/更新：
+
 ```sh
-npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr
+npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr@latest dsh-mcp-mgr-ui@latest 
 ```
 
 启动：
+
 ```sh
 npx @deepseek-ai/dsh web
 ```
 
-更新（发布新版本后执行，重启后生效）：
-```sh
-npx @deepseek-ai/dsh plugin --profile web update dsh-mcp-mgr dsh-mcp-mgr-ui
-```
-
-> `dsh plugin` 是 pnpm 转发，`update` 遵循 pnpm 语义：两个包都要列——UI 包（`dsh-mcp-mgr-ui`）是 host 包的依赖，单独 `update dsh-mcp-mgr` 不会更新它。
-
 卸载：
+
 ```sh
-npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr
+npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr dsh-mcp-mgr-ui
 ```
 
 ## 工作区配置

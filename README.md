@@ -16,10 +16,10 @@ A workspace-level MCP manager for DeepSeek Harness: declare MCP servers in each 
 
 ## Install, update & uninstall
 
-Install:
+Install/Update:
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr
+npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr@latest dsh-mcp-mgr-ui@latest
 ```
 
 Start:
@@ -28,20 +28,10 @@ Start:
 npx @deepseek-ai/dsh web
 ```
 
-Update (when a new version is published; restarts into effect):
-
-```sh
-npx @deepseek-ai/dsh plugin --profile web update dsh-mcp-mgr dsh-mcp-mgr-ui
-```
-
-> `dsh plugin` forwards to pnpm, so `update` follows pnpm semantics: list both
-> packages — the UI package (`dsh-mcp-mgr-ui`) is a dependency of the host
-> package and is not touched by a bare `update dsh-mcp-mgr`.
-
 Uninstall:
 
 ```sh
-npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr
+npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr dsh-mcp-mgr-ui
 ```
 
 ## Workspace configuration
