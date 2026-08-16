@@ -8,7 +8,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { TYPERT_REMOTE } from 'dsh-mcp-mgr/remote'
-import type { McpApplyResult, McpManagerSnapshot, McpServerDraft } from 'dsh-mcp-mgr/types'
+import type { McpApplyResult, McpManagerSnapshot, McpPluginVersionInfo, McpServerDraft } from 'dsh-mcp-mgr/types'
 import { loadStrictMode, McpSettingsTab, type McpSettingsTabInjected } from './McpSettingsTab.tsx'
 import { en, zh, type McpLocaleKey } from './locales.ts'
 
@@ -37,6 +37,7 @@ interface McpMgrNamespace {
   setServerEnabled(workspace: string, name: string, enabled: boolean): Promise<RemoteResult<McpApplyResult>>
   setStrictMode(enabled: boolean): Promise<RemoteResult<McpManagerSnapshot>>
   setActiveWorkspace(path: string): Promise<RemoteResult<McpManagerSnapshot>>
+  versionInfo(): Promise<RemoteResult<McpPluginVersionInfo>>
 }
 
 /**
@@ -139,6 +140,13 @@ export async function apply(ctx: ClientContext): Promise<void> {
       return result.value
     },
     setStrictMode,
+    versionInfo: async () => {
+      const result = await mcpMgr().versionInfo()
+      if (!result.ok) {
+        throw new Error(`mcpMgr.versionInfo failed: ${result.error.code}: ${result.error.message}`)
+      }
+      return result.value
+    },
     listWorkspaces: () => ctx.workspaces.list.getSnapshot().items.map(workspace => ({
       path: workspace.path,
       title: workspace.title,

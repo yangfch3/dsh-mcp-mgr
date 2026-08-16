@@ -22,7 +22,8 @@ import { draftToEntry, mcpJsonPath, parseMcpJson, validateDraft, type ParsedServ
 import { profileServerNames, scanProfileEntries, type LoaderEntryView } from './profile.ts'
 import { McpSync } from './sync.ts'
 import { createFileWatcher } from './watch.ts'
-import type { McpApplyResult, McpManagerSnapshot, McpServerDraft, McpServerState } from './types.ts'
+import { checkPluginVersion } from './version.ts'
+import type { McpApplyResult, McpManagerSnapshot, McpPluginVersionInfo, McpServerDraft, McpServerState } from './types.ts'
 
 export type * from './types.ts'
 export { parseMcpJson, mcpJsonPath, expandEnv } from './parse.ts'
@@ -69,6 +70,8 @@ export class McpMgrGateway extends TypertRemoteService {
   private readonly rescanTimer: ReturnType<typeof setInterval>
   private readonly parseCache = new Map<string, readonly ParsedServer[]>()
   private readonly workspaceSet = new Set<string>()
+  /** Startup npm update check (fires once; never rejects). */
+  private readonly versionCheck: Promise<McpPluginVersionInfo>
   private profileServers: readonly McpServerState[] = []
   private rescanning = false
   /** Strict mode: only {@link activeWorkspace}'s servers are mounted. */
@@ -115,11 +118,30 @@ export class McpMgrGateway extends TypertRemoteService {
     this.rescanTimer = setInterval(() => {
       void this.runRescan()
     }, config.rescanIntervalMs)
+    // Self-update check on startup; failures are silent by design.
+    this.versionCheck = checkPluginVersion()
+    void this.versionCheck.then(info => {
+      if (info.updateAvailable) {
+        ctx.logger.info(`mcp-mgr: update available: ${info.localVersion} -> ${info.latestVersion} (${info.updateUrl})`)
+      } else if (info.latestVersion === '') {
+        ctx.logger.warn('mcp-mgr: plugin update check failed (npm registry unreachable)')
+      }
+    })
     ctx.effect(() => () => {
       this.fileWatcher.dispose()
       clearInterval(this.rescanTimer)
     }, 'mcp-mgr: cleanup')
     void this.runRescan()
+  }
+
+  /**
+   * Self-update check result (startup npm lookup). Awaits the in-flight
+   * check so the first UI load is deterministic; the check itself never
+   * rejects, so this resolves as soon as the lookup settles.
+   */
+  @Remote('versionInfo')
+  async versionInfo(): Promise<McpPluginVersionInfo> {
+    return this.versionCheck
   }
 
   /** Full current projection for the UI. */

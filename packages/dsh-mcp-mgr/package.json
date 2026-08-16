@@ -1,7 +1,7 @@
 {
   "name": "dsh-mcp-mgr",
   "description": "Workspace-level MCP manager for DeepSeek Harness: discovers .dsh/dshmm/mcp.json per workspace and dynamically registers mcp-client instances",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "main": "lib/types/index.js",
   "types": "lib/types/index.d.ts",

@@ -58,6 +58,8 @@ export const zh = {
   removeRow: '删除',
   added: '已写入 mcp.json',
   addedStrict: '已写入 mcp.json；严格模式下需切换到该工作区才挂载',
+  updateAvailable: '插件有新版本可用，点击',
+  updateAvailableLink: '查看升级方式',
 } satisfies Record<string, string>
 
 /** MCP manager locale key union. */
@@ -121,4 +123,6 @@ export const en: Record<McpLocaleKey, string> = {
   removeRow: 'Remove',
   added: 'Written to mcp.json',
   addedStrict: 'Written to mcp.json; strict mode mounts it once this workspace is active',
+  updateAvailable: 'A new plugin version is available. Click',
+  updateAvailableLink: 'to see how to upgrade.',
 }

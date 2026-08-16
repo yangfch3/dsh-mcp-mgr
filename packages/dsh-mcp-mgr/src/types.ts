@@ -43,6 +43,18 @@ export interface McpServerState {
   readonly sourceFile?: string
 }
 
+/** Self-update check result served to the UI; '' means the value is unknown. */
+export interface McpPluginVersionInfo {
+  /** Installed host package version ('' when unreadable). */
+  readonly localVersion: string
+  /** Latest published version on the npm registry ('' when the check failed). */
+  readonly latestVersion: string
+  /** Whether an upgrade is available (latest > local, both known). */
+  readonly updateAvailable: boolean
+  /** Project URL carrying the update instructions. */
+  readonly updateUrl: string
+}
+
 /** Full manager projection served to the UI. */
 export interface McpManagerSnapshot {
   readonly servers: readonly McpServerState[]

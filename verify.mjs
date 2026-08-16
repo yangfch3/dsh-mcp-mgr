@@ -184,7 +184,7 @@ console.log('remote artifact:')
 {
   const contribution = (await import(join(root, './packages/dsh-mcp-mgr/lib/typert.remote-client.js'))).default
   check('package identity', contribution.package === 'dsh-mcp-mgr')
-  check('six methods', contribution.descriptors.length === 6)
+  check('seven methods', contribution.descriptors.length === 7)
   check('removeServer not colliding name', contribution.descriptors.some(d => d.method === 'removeServer') && !contribution.descriptors.some(d => d.method === 'remove'))
   for (const d of contribution.descriptors) {
     check(`strict codec ${d.namespace}/${d.method}`, d.result.mode === 'strict')
@@ -210,6 +210,10 @@ console.log('remote artifact:')
   } catch { check('snapshot codec accepts profile row', false) }
   const disabledSnap = snapshotSchema.parse({ servers: [{ key: 'k2', source: 'workspace', workspace: '/w', name: 'n2', enabled: false, transport: 'stdio', status: 'disabled' }], watchedWorkspaces: ['/w'], strictMode: false, activeWorkspace: '' })
   check('snapshot codec accepts disabled row with enabled flag', disabledSnap.servers[0].enabled === false && disabledSnap.servers[0].status === 'disabled')
+  const versionDesc = contribution.descriptors.find(d => d.method === 'versionInfo')
+  check('versionInfo has no parameters', versionDesc.parameters.length === 0)
+  const versionInfo = versionDesc.result.schema.parse({ localVersion: '0.1.4', latestVersion: '0.1.5', updateAvailable: true, updateUrl: 'https://github.com/yangfch3/dsh-mcp-mgr' })
+  check('versionInfo codec round-trips', versionInfo.updateAvailable === true && versionInfo.latestVersion === '0.1.5')
 }
 
 // ── 4. Real registry mount ──────────────────────────────────────────────────

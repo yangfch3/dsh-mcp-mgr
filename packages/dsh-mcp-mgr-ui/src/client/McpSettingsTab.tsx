@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { McpApplyResult, McpManagerSnapshot, McpServerDraft, McpServerState, McpServerStatus } from 'dsh-mcp-mgr/types'
+import type { McpApplyResult, McpManagerSnapshot, McpPluginVersionInfo, McpServerDraft, McpServerState, McpServerStatus } from 'dsh-mcp-mgr/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { McpServerForm } from './McpServerForm.tsx'
@@ -36,6 +36,8 @@ export interface McpSettingsTabInjected {
   openSourceFile: (sourceFile: string) => Promise<void>
   /** Toggle strict mode host-side; resolves with the post-change snapshot. */
   setStrictMode: (enabled: boolean) => Promise<McpManagerSnapshot>
+  /** Self-update check result (startup npm lookup). */
+  versionInfo: () => Promise<McpPluginVersionInfo>
   /** Registered workspaces for the add-form target picker. */
   listWorkspaces: () => readonly WorkspaceOption[]
   /** Workspace of the currently open session ('' when none). */
@@ -88,15 +90,25 @@ function shortPath(path: string, forceLastTwo = false): string {
 
 /** Render the currently registered MCP servers (workspace + profile sources). */
 export function McpSettingsTab({
-  snapshot, apply, removeServer, setServerEnabled, openSourceFile, setStrictMode, listWorkspaces, currentWorkspacePath, t,
+  snapshot, apply, removeServer, setServerEnabled, openSourceFile, setStrictMode, versionInfo, listWorkspaces, currentWorkspacePath, t,
 }: McpSettingsTabProps): ReactNode {
   const [request, setRequest] = useState(0)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
   const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<McpPluginVersionInfo | null>(null)
   const [strictMode, setStrictModeState] = useState<boolean>(() => loadStrictMode() ?? false)
   const [showForm, setShowForm] = useState(false)
+
+  useEffect(() => {
+    let current = true
+    void versionInfo().then(
+      (info) => { if (current) setUpdateInfo(info) },
+      () => { if (current) setUpdateInfo(null) },
+    )
+    return () => { current = false }
+  }, [versionInfo])
 
   useEffect(() => {
     let current = true
@@ -212,6 +224,16 @@ export function McpSettingsTab({
     <div className={css.section} aria-busy={state.status === 'loading'}>
       {/* Transient result feedback: floats over the viewport, never pushes the table. */}
       {notice !== null ? <Toast text={notice} onDone={() => { setNotice(null) }} /> : null}
+      {/* Startup npm update check: banner only when an upgrade is available. */}
+      {updateInfo?.updateAvailable === true ? (
+        <div className={css.update} role="status">
+          {t('updateAvailable')}
+          {' '}
+          <a href={updateInfo.updateUrl} target="_blank" rel="noreferrer">{updateInfo.updateUrl}</a>
+          {' '}
+          {t('updateAvailableLink')}
+        </div>
+      ) : null}
       <div className={css.heading}>
         <h3>{t('server')}</h3>
         <div className={css.headingActions}>
