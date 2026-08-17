@@ -81,10 +81,16 @@ ctx.tools (host 全局)  ← 所有 session 可见
 
 ```sh
 # 发布（顺序：先 ui 后 mgr，mgr 的依赖里引用 ui）
-cd packages/dsh-mcp-mgr-ui && pnpm publish
-cd ../dsh-mcp-mgr && pnpm publish
+cd packages/dsh-mcp-mgr-ui && npm publish
+cd ../dsh-mcp-mgr && npm publish
+
 # 用户安装（等价于 scripts/install.mjs 的线上版）
-dsh plugin --profile web add dsh-mcp-mgr
+dsh plugin --profile web add dsh-mcp-mgr@latest dsh-mcp-mgr-ui@latest
+
+# 因为 pnpm 的发布年龄限制，最新发布的版本需要满足 dsh 配置的最小年龄才可拉取最新版本
+# 如需即刻使用，可等待过发布年龄或强行执行版本号
+# dsh plugin --profile web add dsh-mcp-mgr@x.x.x dsh-mcp-mgr-ui@x.x.x
+
 ```
 
 卸载：`dsh plugin --profile web remove dsh-mcp-mgr`。当前 `scripts/install.mjs` 保留给源码开发环境。
