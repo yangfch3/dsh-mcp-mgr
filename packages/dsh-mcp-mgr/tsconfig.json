@@ -16,8 +16,8 @@
     "paths": {
       "@deepseek-ai/dsh-mcp-client": ["./stub/mcp-client.d.ts"],
       "@deepseek-ai/dsh-scope": ["./stub/dsh-scope.d.ts"],
-      "@deepseek-ai/dsh-typert-protocol": ["../../../vendor-typert-protocol/src/index.ts"],
-      "@deepseek-ai/dsh-typert-protocol/types": ["../../../vendor-typert-protocol/src/types.ts"]
+      "@deepseek-ai/dsh-typert-protocol": ["./stub/typert-protocol.d.ts"],
+      "@deepseek-ai/dsh-typert-protocol/types": ["./stub/typert-protocol.d.ts"]
     },
     "rootDir": "src",
     "outDir": "lib/types",

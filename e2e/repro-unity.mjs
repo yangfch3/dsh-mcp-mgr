@@ -3,8 +3,8 @@
  * gateway and check the connectivity probe — does unity-mcp's own tool
  * schemas break schemas()?
  */
-import { Context, Service } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/vendor/cordis/lib/index.js'
-import ToolRuntime from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/packages/core/tools/lib/types/index.js'
+import { Context, Service } from '@deepseek-ai/cordis'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { McpMgrGateway } from '../packages/dsh-mcp-mgr/lib/types/index.js'
@@ -14,6 +14,7 @@ class StubSystemPrompt extends Service {
   tools() { return [] }
 }
 
+const previousCwd = process.cwd()
 const workspace = `${process.env.TMPDIR ?? '/tmp'}/dsh-mcp-mgr-unity-${process.pid}`
 rmSync(workspace, { recursive: true, force: true })
 mkdirSync(join(workspace, '.dsh', 'dshmm'), { recursive: true })
@@ -41,5 +42,6 @@ try {
   console.log(row?.connected === true ? 'PROBE OK' : 'PROBE FAILED WITH REAL UNITY-MCP')
 } finally {
   await ctx.fiber.dispose()
+  process.chdir(previousCwd)
   rmSync(workspace, { recursive: true, force: true })
 }

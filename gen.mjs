@@ -1,10 +1,10 @@
 /**
  * Generate Typert artifacts for the dsh-mcp-mgr host package.
  */
+import { WorkspaceTypertGenerator } from '@deepseek-ai/dsh-typert-generator'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { WorkspaceTypertGenerator } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/packages/typert/generator/lib/types/workspace.js'
 
 const root = dirname(fileURLToPath(import.meta.url))
 const generator = new WorkspaceTypertGenerator(root)

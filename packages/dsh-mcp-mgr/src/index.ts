@@ -14,11 +14,12 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 // The mcp-client plugin object; dynamically mounted one instance per server.
 import * as mcpClient from '@deepseek-ai/dsh-mcp-client'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
-import { readFileSync, writeFileSync, mkdirSync, renameSync, realpathSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import Schema from '@deepseek-ai/schemastery'
 import { collectWorkspaces, hasManagerFile } from './discovery.ts'
-import { draftToEntry, mcpJsonPath, parseMcpJson, validateDraft, type ParsedServer } from './parse.ts'
+import { draftToEntry, mcpJsonPath, parseMcpJson, SERVER_NAME_PATTERN, validateDraft, type ParsedServer } from './parse.ts'
 import { profileServerNames, scanProfileEntries, type LoaderEntryView } from './profile.ts'
 import { McpSync } from './sync.ts'
 import { createFileWatcher } from './watch.ts'
@@ -32,6 +33,9 @@ export type { McpInstance, InstanceFactory } from './sync.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'mcp-mgr'
+
+/** Services required before the manager starts mounting MCP clients. */
+export const inject = ['tools']
 
 /** The manager's Remote namespace. */
 export const REMOTE_NAMESPACE = 'mcpMgr'
@@ -80,6 +84,8 @@ export class McpMgrGateway extends TypertRemoteService {
   private activeWorkspace = ''
   /** Serialized rescan chain so Remote-triggered passes apply in order. */
   private rescanChain: Promise<void> = Promise.resolve()
+  /** Per-workspace lock for read-modify-write Remote mutations. */
+  private readonly mutationChains = new Map<string, Promise<void>>()
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'mcpMgr')
@@ -127,9 +133,10 @@ export class McpMgrGateway extends TypertRemoteService {
         ctx.logger.warn('mcp-mgr: plugin update check failed (npm registry unreachable)')
       }
     })
-    ctx.effect(() => () => {
+    ctx.effect(() => async () => {
       this.fileWatcher.dispose()
       clearInterval(this.rescanTimer)
+      await this.sync.dispose()
     }, 'mcp-mgr: cleanup')
     void this.runRescan()
   }
@@ -176,7 +183,9 @@ export class McpMgrGateway extends TypertRemoteService {
    */
   @Remote('setActiveWorkspace')
   async setActiveWorkspace(path: string): Promise<McpManagerSnapshot> {
-    this.activeWorkspace = path
+    const activeWorkspace = path === '' ? '' : this.resolveRegisteredWorkspace(path)
+    if (activeWorkspace === undefined) throw new Error(`workspace is not registered: ${path}`)
+    this.activeWorkspace = activeWorkspace
     if (this.strictMode) await this.runRescan()
     return this.snapshot()
   }
@@ -190,11 +199,11 @@ export class McpMgrGateway extends TypertRemoteService {
   async apply(draft: McpServerDraft): Promise<McpApplyResult> {
     const invalid = validateDraft(draft)
     if (invalid !== undefined) return { ok: false, error: invalid }
-    // One canonical path for the file write and the parse-cache key, so a
-    // non-canonical client input (e.g. a symlinked form) can never desync
-    // this mutation from the resync below.
-    const workspacePath = realpathSync(draft.workspace)
-    const path = mcpJsonPath(workspacePath)
+    const workspacePath = this.resolveRegisteredWorkspace(draft.workspace)
+    if (workspacePath === undefined) return { ok: false, error: `workspace is not registered: ${draft.workspace}` }
+    const release = await this.acquireMutation(workspacePath)
+    try {
+      const path = mcpJsonPath(workspacePath)
     let document: { mcpServers?: Record<string, unknown> }
     try {
       document = JSON.parse(readFileSync(path, 'utf8')) as { mcpServers?: Record<string, unknown> }
@@ -227,6 +236,9 @@ export class McpMgrGateway extends TypertRemoteService {
     this.parseCache.delete(workspacePath)
     await this.runRescan()
     return { ok: true }
+    } finally {
+      release()
+    }
   }
 
   /**
@@ -238,12 +250,17 @@ export class McpMgrGateway extends TypertRemoteService {
    */
   @Remote('removeServer')
   async removeServer(workspace: string, serverName: string): Promise<McpApplyResult> {
-    // Canonical path shared by the file write and the parse-cache key.
-    const workspacePath = realpathSync(workspace)
-    const path = mcpJsonPath(workspacePath)
-    if (!hasManagerFile(workspacePath)) {
-      return { ok: false, error: `no mcp.json under ${workspacePath}` }
+    if (!SERVER_NAME_PATTERN.test(serverName)) {
+      return { ok: false, error: `invalid serverName: ${serverName}` }
     }
+    const workspacePath = this.resolveRegisteredWorkspace(workspace)
+    if (workspacePath === undefined) return { ok: false, error: `workspace is not registered: ${workspace}` }
+    const release = await this.acquireMutation(workspacePath)
+    try {
+      const path = mcpJsonPath(workspacePath)
+      if (!hasManagerFile(workspacePath)) {
+        return { ok: false, error: `no mcp.json under ${workspacePath}` }
+      }
     try {
       const document = JSON.parse(readFileSync(path, 'utf8')) as { mcpServers?: Record<string, unknown> }
       if (document.mcpServers !== undefined && typeof document.mcpServers === 'object') {
@@ -261,6 +278,9 @@ export class McpMgrGateway extends TypertRemoteService {
     this.parseCache.delete(workspacePath)
     await this.runRescan()
     return { ok: true }
+    } finally {
+      release()
+    }
   }
 
   /**
@@ -271,12 +291,17 @@ export class McpMgrGateway extends TypertRemoteService {
    */
   @Remote('setServerEnabled')
   async setServerEnabled(workspace: string, serverName: string, enabled: boolean): Promise<McpApplyResult> {
-    // Canonical path shared by the file write and the parse-cache key.
-    const workspacePath = realpathSync(workspace)
-    const path = mcpJsonPath(workspacePath)
-    if (!hasManagerFile(workspacePath)) {
-      return { ok: false, error: `no mcp.json under ${workspacePath}` }
+    if (!SERVER_NAME_PATTERN.test(serverName)) {
+      return { ok: false, error: `invalid serverName: ${serverName}` }
     }
+    const workspacePath = this.resolveRegisteredWorkspace(workspace)
+    if (workspacePath === undefined) return { ok: false, error: `workspace is not registered: ${workspace}` }
+    const release = await this.acquireMutation(workspacePath)
+    try {
+      const path = mcpJsonPath(workspacePath)
+      if (!hasManagerFile(workspacePath)) {
+        return { ok: false, error: `no mcp.json under ${workspacePath}` }
+      }
     try {
       const document = JSON.parse(readFileSync(path, 'utf8')) as { mcpServers?: Record<string, unknown> }
       const servers = document.mcpServers
@@ -302,6 +327,32 @@ export class McpMgrGateway extends TypertRemoteService {
     this.parseCache.delete(workspacePath)
     await this.runRescan()
     return { ok: true }
+    } finally {
+      release()
+    }
+  }
+
+  private resolveRegisteredWorkspace(input: string): string | undefined {
+    let candidate: string
+    try {
+      candidate = realpathSync(input)
+    } catch {
+      return undefined
+    }
+    return collectWorkspaces(this.ctx).some(workspace => workspace.path === candidate) ? candidate : undefined
+  }
+
+  /** Serialize read-modify-write operations for one workspace file. */
+  private async acquireMutation(workspacePath: string): Promise<() => void> {
+    const previous = this.mutationChains.get(workspacePath)
+    let release!: () => void
+    const current = new Promise<void>(resolve => { release = resolve })
+    this.mutationChains.set(workspacePath, current)
+    if (previous !== undefined) await previous
+    return () => {
+      release()
+      if (this.mutationChains.get(workspacePath) === current) this.mutationChains.delete(workspacePath)
+    }
   }
 
   /**
@@ -330,7 +381,13 @@ export class McpMgrGateway extends TypertRemoteService {
       }
       const watchFiles: string[] = []
       for (const workspace of workspaces) {
-        if (!hasManagerFile(workspace.path)) continue
+        if (!hasManagerFile(workspace.path)) {
+          // A deleted mcp.json is an empty desired state, not an absent pass.
+          // Reconcile it immediately so the old MCP fiber and tools unload.
+          this.parseCache.delete(workspace.path)
+          await this.sync.syncWorkspace({ workspacePath: workspace.path, servers: [] })
+          continue
+        }
         watchFiles.push(mcpJsonPath(workspace.path))
         const cached = this.parseCache.get(workspace.path)
         if (cached !== undefined) continue
@@ -345,8 +402,7 @@ export class McpMgrGateway extends TypertRemoteService {
       // flag workspace rows conflict instead of failing the mount.
       this.sync.setReservedNames(profileServerNames(this.loaderEntries()))
       for (const path of [...next].sort()) {
-        const servers = this.parseCache.get(path)
-        if (servers === undefined) continue
+        const servers = this.parseCache.get(path) ?? []
         // Strict mode mounts only the selected workspace; empty desires
         // unmount every other workspace's instances (profile rows stay).
         const desired = this.strictMode && path !== this.activeWorkspace ? [] : servers
@@ -405,9 +461,14 @@ export class McpMgrGateway extends TypertRemoteService {
 
 function atomicWriteJson(path: string, document: unknown): void {
   mkdirSync(dirname(path), { recursive: true })
-  const tmp = join(dirname(path), `.mcp.json.tmp-${process.pid}`)
-  writeFileSync(tmp, `${JSON.stringify(document, null, 2)}\n`, 'utf8')
-  renameSync(tmp, path)
+  const tmp = join(dirname(path), `.mcp.json.tmp-${process.pid}-${randomUUID()}`)
+  try {
+    writeFileSync(tmp, `${JSON.stringify(document, null, 2)}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+    chmodSync(tmp, 0o600)
+    renameSync(tmp, path)
+  } finally {
+    rmSync(tmp, { force: true })
+  }
 }
 
 /** Whether the tools registry holds any `mcp__<serverName>__*` tool. */

@@ -5,9 +5,9 @@
  *  3. Remote artifact shape (strict codecs)
  *  4. real Typert registry mount of the generated contribution
  */
-import { Context } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/vendor/cordis/lib/index.js'
-import TypertRegistry from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/packages/typert/registry/lib/index.js'
-import { fileURLToPath } from 'node:url'
+import { Context } from '@deepseek-ai/cordis'
+import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { parseMcpJson, expandEnv } from './packages/dsh-mcp-mgr/lib/types/parse.js'
@@ -128,7 +128,7 @@ console.log('sync:')
 // ── 2b. draft validation ───────────────────────────────────────────────────
 console.log('draft validation:')
 {
-  const { validateDraft } = await import(join(root, './packages/dsh-mcp-mgr/lib/types/parse.js'))
+  const { validateDraft } = await import(pathToFileURL(join(root, './packages/dsh-mcp-mgr/lib/types/parse.js')).href)
   check('valid stdio draft', validateDraft({ name: 'ok_name-1', transport: 'stdio', command: 'npx' }) === undefined)
   check('valid http draft', validateDraft({ name: 'a', transport: 'streamable-http', url: 'http://x' }) === undefined)
   check('bad name rejected', validateDraft({ name: 'bad.name', transport: 'stdio', command: 'x' }) !== undefined)
@@ -142,7 +142,7 @@ console.log('draft validation:')
 // ── 3. profile entry scan ───────────────────────────────────────────────────
 console.log('profile scan:')
 {
-  const { scanProfileEntries, findProfilePatchFile } = await import(join(root, './packages/dsh-mcp-mgr/lib/types/profile.js'))
+  const { scanProfileEntries, findProfilePatchFile } = await import(pathToFileURL(join(root, './packages/dsh-mcp-mgr/lib/types/profile.js')).href)
   const tmpProfiles = join(root, '.verify-tmp-profiles')
   rmSync(tmpProfiles, { recursive: true, force: true })
   mkdirSync(join(tmpProfiles, 'web'), { recursive: true })
@@ -182,7 +182,7 @@ console.log('profile scan:')
 // ── 4. Remote artifact shape ────────────────────────────────────────────────
 console.log('remote artifact:')
 {
-  const contribution = (await import(join(root, './packages/dsh-mcp-mgr/lib/typert.remote-client.js'))).default
+  const contribution = (await import(pathToFileURL(join(root, './packages/dsh-mcp-mgr/lib/typert.remote-client.js')).href)).default
   check('package identity', contribution.package === 'dsh-mcp-mgr')
   check('seven methods', contribution.descriptors.length === 7)
   check('removeServer not colliding name', contribution.descriptors.some(d => d.method === 'removeServer') && !contribution.descriptors.some(d => d.method === 'remove'))
@@ -219,7 +219,7 @@ console.log('remote artifact:')
 // ── 4. Real registry mount ──────────────────────────────────────────────────
 console.log('registry mount:')
 {
-  const contribution = (await import(join(root, './packages/dsh-mcp-mgr/lib/typert.remote-client.js'))).default
+  const contribution = (await import(pathToFileURL(join(root, './packages/dsh-mcp-mgr/lib/typert.remote-client.js')).href)).default
   const ctx = new Context()
   await ctx.plugin(TypertRegistry)
   const dispose = ctx.typert.remotes.register(contribution)

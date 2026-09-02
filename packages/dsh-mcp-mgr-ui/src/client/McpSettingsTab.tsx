@@ -32,8 +32,6 @@ export interface McpSettingsTabInjected {
   removeServer: (workspace: string, name: string) => Promise<McpApplyResult>
   /** Enable/disable one server in a workspace's mcp.json. */
   setServerEnabled: (workspace: string, name: string, enabled: boolean) => Promise<McpApplyResult>
-  /** Open a profile config file with the Host's default application. */
-  openSourceFile: (sourceFile: string) => Promise<void>
   /** Toggle strict mode host-side; resolves with the post-change snapshot. */
   setStrictMode: (enabled: boolean) => Promise<McpManagerSnapshot>
   /** Self-update check result (startup npm lookup). */
@@ -90,7 +88,7 @@ function shortPath(path: string, forceLastTwo = false): string {
 
 /** Render the currently registered MCP servers (workspace + profile sources). */
 export function McpSettingsTab({
-  snapshot, apply, removeServer, setServerEnabled, openSourceFile, setStrictMode, versionInfo, listWorkspaces, currentWorkspacePath, t,
+  snapshot, apply, removeServer, setServerEnabled, setStrictMode, versionInfo, listWorkspaces, currentWorkspacePath, t,
 }: McpSettingsTabProps): ReactNode {
   const [request, setRequest] = useState(0)
   const [state, setState] = useState<ViewState>({ status: 'loading' })
@@ -192,19 +190,6 @@ export function McpSettingsTab({
     setState({ status: 'loading' })
     setRequest(value => value + 1)
     setNotice(result.ok ? (enabled ? t('enabled') : t('disabled')) : `${t('applyFailed')}: ${result.error}`)
-  }
-
-  const onView = async (server: McpServerState): Promise<void> => {
-    if (server.sourceFile === undefined) return
-    setBusy(server.key)
-    setNotice(null)
-    try {
-      await openSourceFile(server.sourceFile)
-    } catch (error) {
-      setNotice(`${t('applyFailed')}: ${String(error instanceof Error ? error.message : error)}`)
-    } finally {
-      setBusy(null)
-    }
   }
 
   const onToggleStrict = async (enabled: boolean): Promise<void> => {
@@ -346,14 +331,6 @@ export function McpSettingsTab({
                           {t('remove')}
                         </button>
                       </>
-                    ) : server.sourceFile !== undefined ? (
-                      <button
-                        type="button"
-                        disabled={busy === server.key}
-                        onClick={() => { void onView(server) }}
-                      >
-                        {t('view')}
-                      </button>
                     ) : null}
                   </td>
                 </tr>

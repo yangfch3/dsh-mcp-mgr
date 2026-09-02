@@ -2,9 +2,12 @@
  * MCP manager tab registered into Web Settings.
  */
 
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { TYPERT_REMOTE } from 'dsh-mcp-mgr/remote'
@@ -27,7 +30,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const NS = 'settings.mcpMgr'
 
 /** Services required by the Settings registration. */
-export const inject = ['slots', 'locale', 'remote', 'connection', 'sessions', 'workspaces']
+export const inject = ['slots', 'locale', 'remote', 'sessions', 'workspaces']
 
 /** The namespace service this plugin mounts itself — fetched via `ctx.get`, never injected. */
 interface McpMgrNamespace {
@@ -156,16 +159,6 @@ export async function apply(ctx: ClientContext): Promise<void> {
       if (current === undefined) return ''
       return ctx.workspaces.list.getSnapshot().items
         .find(workspace => workspace.sessionIds.includes(current))?.path ?? ''
-    },
-    openSourceFile: async (sourceFile) => {
-      const connection = ctx.get('connection') as ConnectionHandle | undefined
-      if (connection === undefined) {
-        throw new Error('connection service is not mounted')
-      }
-      const response = await connection.api.host.openPath({ path: sourceFile }, new AbortController().signal)
-      if (!response.result.ok) {
-        throw new Error(response.result.error.message)
-      }
     },
   })
 

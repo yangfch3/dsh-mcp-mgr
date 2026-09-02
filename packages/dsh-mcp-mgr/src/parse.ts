@@ -98,10 +98,15 @@ export function parseMcpJson(text: string, workspacePath: string): ParseResult {
       errors.push({ name, message: 'entry must be an object' })
       continue
     }
-    // Explicit `enabled: false` disables; absent or any other value keeps the
-    // entry enabled (tolerant so hand-edited configs never surprise-disable).
     const enabled = rawEntry.enabled !== false
-    const transport = rawEntry.type === 'http' ? 'streamable-http' : 'stdio'
+    // Missing type is the documented HTTP shorthand; reject unknown types
+    // instead of silently treating a typo as stdio.
+    const rawType = rawEntry.type
+    if (rawType !== undefined && rawType !== 'stdio' && rawType !== 'http') {
+      errors.push({ name, message: '"type" must be either "stdio" or "http"' })
+      continue
+    }
+    const transport = rawType === 'stdio' ? 'stdio' : 'streamable-http'
     if (transport === 'stdio') {
       const command = asString(rawEntry.command)
       if (command === undefined || command.length === 0) {
@@ -232,7 +237,7 @@ export function validateDraft(draft: {
     if (draft.command === undefined || draft.command.trim().length === 0) {
       return 'stdio servers require a "command"'
     }
-    if (draft.args !== undefined && !Array.isArray(draft.args)) {
+    if (draft.args !== undefined && (!Array.isArray(draft.args) || draft.args.some(arg => typeof arg !== 'string'))) {
       return '"args" must be an array of strings'
     }
     if (draft.env !== undefined && !isStringRecord(draft.env)) {

@@ -4,7 +4,7 @@
  * the manager discovers a workspace mcp.json, mounts the server, and its
  * tools land on ctx.tools under mcp__<server>__<tool> names.
  */
-import { Context, Service } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/vendor/cordis/lib/index.js'
+import { Context, Service } from '@deepseek-ai/cordis'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +20,7 @@ class FakeTools extends Service {
   execute() { throw new Error('unused') }
 }
 
+const previousCwd = process.cwd()
 const workspace = `${process.env.TMPDIR ?? '/tmp'}/dsh-mcp-mgr-e2e-${process.pid}`
 const mcpJson = join(workspace, '.dsh', 'dshmm', 'mcp.json')
 mkdirSync(dirname(mcpJson), { recursive: true })
@@ -65,7 +66,7 @@ try {
   console.log('after env change, status:', gateway.snapshot().servers[0].status)
   console.log('E2E PASS')
 } finally {
-  gateway['dispose']?.()
   await ctx.fiber.dispose()
+  process.chdir(previousCwd)
   rmSync(workspace, { recursive: true, force: true })
 }

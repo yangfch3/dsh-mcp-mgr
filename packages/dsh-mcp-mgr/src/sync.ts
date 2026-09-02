@@ -112,6 +112,18 @@ export class McpSync {
     return this.syncWorkspace({ workspacePath, servers: [] })
   }
 
+  /** Dispose every mounted instance before the owning Cordis context closes. */
+  dispose(): Promise<void> {
+    const run = async (): Promise<void> => {
+      for (const instance of [...this.instances.values()]) {
+        await this.removeInstance(instance)
+      }
+    }
+    const next = this.syncing.then(run, run)
+    this.syncing = next.catch(() => undefined)
+    return next
+  }
+
   /**
    * Re-probe live instances' connectivity (tools registered). A server that
    * was down at mount keeps its initial `connected: false` while mcp-client

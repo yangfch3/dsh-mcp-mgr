@@ -2,81 +2,155 @@
 
 English | [中文](README.zh.md)
 
-A workspace-level MCP manager for DeepSeek Harness: declare MCP servers in each workspace's `.dsh/dshmm/mcp.json` (Claude/Codex-style `mcpServers` format), auto-discovered and dynamically registered as dsh plugin instances, with a management UI in the settings page.
-
-## Features
-
-- **Workspace MCP**: auto-discovers `mcp.json` under every registered workspace, hot-syncs on file changes, and unloads on workspace removal
-- **Profile MCP display**: unified display and management of non-workspace mcp-client registrations (profile patch / bundle / `--patch`)
-- **Settings tab**: MCP server list — source, status, inspect and remove
-- **Strict mode**: when checked, only the current workspace's (the sidebar-selected session's workspace) MCP servers are enabled; switching workspaces unloads the others. Off by default (all workspaces coexist)
-- Workspace MCP servers are registered under dsh's standard `mcp__<serverName>__<tool>` naming, so multiple servers and sources are naturally isolated
+A workspace-level MCP manager for DeepSeek Harness: it reads MCP servers from each workspace's `.dsh/dshmm/mcp.json`, registers their tools dynamically, and provides a management tab in the Web settings UI.
 
 ![MCP servers tab](Doc/assets/plugin-shot.jpg)
 
-## Install, update & uninstall
+## Choose your workflow
 
-Install/Update:
+| User | Entry point | Source checkouts required |
+| --- | --- | --- |
+| Regular user | npm package + `npx @deepseek-ai/dsh` | Neither deepseek-harness nor this repository |
+| Source developer | deepseek-harness source + this repository source | Both, at arbitrary locations |
 
-```sh
-npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr@latest dsh-mcp-mgr-ui@latest
+## Regular users: npm package
+
+### Install and start
+
+```powershell
+npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr@latest
+npx @deepseek-ai/dsh web
 ```
 
-Start:
+Run the install command again to update:
 
-```sh
-npx @deepseek-ai/dsh web
+```powershell
+npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr@latest
 ```
 
 Uninstall:
 
-```sh
-npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr dsh-mcp-mgr-ui
+```powershell
+npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr
 ```
 
 ## Workspace configuration
 
-The plugin auto-detects `.dsh/dshmm/mcp.json` at the workspace root, for example:
+Create `.dsh/dshmm/mcp.json` at the workspace root:
 
 ```json
 {
   "mcpServers": {
-    "unity-mcp": { "type": "http", "url": "http://localhost:8090/" },
-    "filesystem": { "type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"] }
+    "my-http-server": {
+      "type": "http",
+      "url": "http://127.0.0.1:8090/mcp"
+    },
+    "my-stdio-server": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "<mcp-server-package>"]
+    }
   }
 }
 ```
 
-- A missing `type` is treated as remote Streamable HTTP; `${VAR}` environment expansion is supported
-- The stdio server's cwd defaults to the workspace root
-- `serverName` must be globally unique; a later duplicate fails loudly (flagged as a conflict in the UI)
-- Set `"enabled": false` on an entry to disable it without removing it (absent means enabled); the settings tab's toggle writes this field
+Rules:
 
-## Development
+- A missing `type` is treated as Streamable HTTP; `${VAR}` environment expansion is supported.
+- A stdio server without `cwd` uses the workspace root.
+- `serverName` is globally unique; duplicates are shown as conflicts.
+- Set `"enabled": false` to disable an entry without removing it; absent means enabled.
 
-Build:
+## Behavior and limits
 
-```sh
-# host plugin
-tsc -p packages/dsh-mcp-mgr && node gen.mjs
+- Workspace tools use the `mcp__<serverName>__<tool>` naming convention.
+- Settings strict mode is used to mount only the selected workspace's servers.
 
-# UI plugin (from the ui package directory)
-tsc -p packages/dsh-mcp-mgr-ui && tsdown --config-loader tsx --env.DSH_BUILD_FACE client
+## Source developers: two source checkouts
 
-# regression
-node verify.mjs
+Use this workflow when modifying both deepseek-harness and this plugin. The two repositories may be anywhere; they do not need to be siblings or use fixed paths.
+
+### 1. Configure the harness source once
+
+Replace the placeholder with the absolute path of the deepseek-harness source checkout and run this once:
+
+```powershell
+[Environment]::SetEnvironmentVariable('DSH_HARNESS_ROOT', '<deepseek-harness-source-root>', 'User')
 ```
 
-Note: after changing `src/types.ts` (wire fields) you MUST re-run `gen.mjs` and rebuild the UI bundle — a stale typert client codec silently strips unknown fields (e.g. a lost `connected` keeps the status wrong forever).
+Open a new terminal afterwards. This variable is used only by local profile install/uninstall; it is not used by this repository's build or regression commands.
 
-Local (source) install verification and uninstall:
+### 2. Build this plugin
 
-```sh
-# install
-node scripts/install.mjs
-
-# uninstall
-node scripts/uninstall.mjs
+```powershell
+Set-Location '<dsh-mcp-mgr-source-root>'
+pnpm install
+pnpm run check
 ```
 
-Design docs live in `Doc/requirements.md`.
+`check` includes the host/client builds, Typert generation, and `verify` regression.
+
+### 3. Build the harness, install the local plugin, and start the source Web
+
+Install dependencies and build deepseek-harness first:
+
+```powershell
+Set-Location $env:DSH_HARNESS_ROOT
+pnpm install
+pnpm run build
+```
+
+Then return to the plugin source root and run:
+
+```powershell
+Set-Location '<dsh-mcp-mgr-source-root>'
+pnpm run profile:add
+```
+
+The command invokes the official source CLI through `DSH_HARNESS_ROOT` and dynamically passes the host/UI package directories from the current checkout. It does not depend on a fixed path.
+
+Finally, start the source Web profile:
+
+```powershell
+Set-Location $env:DSH_HARNESS_ROOT
+pnpm dsh web
+```
+
+Go to Setting > Plugins, Check MCP Server tab.
+
+### 4. Local regression
+
+This repository's build and regression commands do not require the harness source checkout:
+
+```powershell
+Set-Location '<dsh-mcp-mgr-source-root>'
+pnpm run check
+pnpm exec node e2e/e2e.mjs
+pnpm exec node e2e/apply-remove-settle.mjs
+```
+
+Expected markers: `ALL PASS`, `E2E PASS`, and `SETTLE PASS`.
+
+### 5. Remove the local profile entries
+
+Stop the Web process first, then run from the plugin source root:
+
+```powershell
+pnpm run profile:remove
+```
+
+## Build commands
+
+Run all commands from this repository root:
+
+```powershell
+pnpm install
+pnpm run build
+pnpm run verify
+```
+
+`build`, `gen.mjs`, and `verify.mjs` use the published npm dependencies and do not require `DSH_HARNESS_ROOT` or a deepseek-harness source checkout. Only `profile:add` and `profile:remove` use that variable to invoke the official source CLI.
+
+After changing wire types in `src/types.ts`, rerun `pnpm run build` so the generated Typert artifacts and client codec stay synchronized.
+
+Design notes live in `Doc/requirements.md`.

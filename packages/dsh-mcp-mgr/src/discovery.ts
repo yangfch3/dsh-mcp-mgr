@@ -8,12 +8,25 @@
  * @module dsh-mcp-mgr/discovery
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { mcpJsonPath } from './parse.ts'
 
-/** One directory that may own a manager file. */
+/** One directory that may own mcp.json. */
 export interface WorkspaceSource {
   readonly path: string
+}
+
+/**
+ * Canonicalize a workspace directory for comparisons and file mutations.
+ * A missing directory is kept as an absolute path so discovery remains
+ * deterministic; mutation callers still require realpath success.
+ */
+export function canonicalWorkspacePath(workspacePath: string): string {
+  try {
+    return realpathSync(workspacePath)
+  } catch {
+    return workspacePath
+  }
 }
 
 /**
@@ -27,10 +40,10 @@ export function collectWorkspaces(ctx: unknown): WorkspaceSource[] {
   const registry = (ctx as { get?: (name: string) => unknown }).get?.('workspaceRegistry') as
     | { list(): readonly { path: string }[] }
     | undefined
-  if (registry !== undefined) {
-    return registry.list().map(workspace => ({ path: workspace.path }))
-  }
-  return [{ path: process.cwd() }]
+  const paths = registry === undefined
+    ? [process.cwd()]
+    : registry.list().map(workspace => workspace.path)
+  return paths.map(path => ({ path: canonicalWorkspacePath(path) }))
 }
 
 /** Whether a workspace currently carries a readable manager file. */

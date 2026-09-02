@@ -42,15 +42,15 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "dsh-mcp-mgr-ui": ">=0.1.0",
+    "dsh-mcp-mgr-ui": "0.1.5",
     "chokidar": "^4.0.3",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=4.0.1",
-    "@deepseek-ai/dsh-mcp-client": ">=0.1.0-rc.5",
-    "@deepseek-ai/dsh-typert-protocol": ">=0.1.0-rc.5",
-    "@deepseek-ai/schemastery": ">=3.18.1",
-    "@deepseek-ai/dsh-scope": ">=0.1.0-rc.5"
+    "@deepseek-ai/cordis": ">=4.0.2",
+    "@deepseek-ai/dsh-mcp-client": ">=0.1.2-alpha.4",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.1.2-alpha.4",
+    "@deepseek-ai/schemastery": ">=3.18.2",
+    "@deepseek-ai/dsh-scope": ">=0.1.2-alpha.4"
   }
 }

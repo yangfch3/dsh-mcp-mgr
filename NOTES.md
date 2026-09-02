@@ -11,4 +11,4 @@
 ## 排查教训
 
 - 改 `types.ts`（wire 字段）后必须重跑 `gen.mjs` 并**重打 UI bundle**：typert 客户端 codec 过期时，严格 codec 会静默剥离未知字段（`connected` 丢失导致永远"已注册"），且只影响通过 Remote 返回的数据，直接读 host 状态看不出来
-- 构建顺序：`tsc host → gen.mjs → tsc ui → tsdown → verify.mjs`
+- 构建顺序（均从仓库根目录执行）：`pnpm run build:host → pnpm run build:client → pnpm run verify`

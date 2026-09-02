@@ -26,8 +26,9 @@ gen.mjs / verify.mjs / e2e/   生成 + 单测 + 真实 MCP server 端到端
 ```
 
 - **验证覆盖**：解析/${VAR}展开/拒绝路径；sync 生命周期（创建/重建/删除/冲突/失败/工作区移除）；Remote 产物 strict codec + 真实 Typert registry 挂载；**真实 mcp-client + 真实 stdio MCP server 端到端**（`e2e/e2e.mjs`，连接→active→mcp.json 变更→重建）
-- **已知未验证**：真实 dsh web profile 中的 UI 渲染与 roster 加载（需本地 dsh web 环境）；组 1 在 web profile 下经 workspaceRegistry 的多工作区并集（e2e 仅覆盖 headless cwd 路径）
-- **构建命令**：`tsc -p packages/dsh-mcp-mgr` → `node gen.mjs`；`tsc -p packages/dsh-mcp-mgr-ui` → `tsdown --config-loader tsx --env.DSH_BUILD_FACE client`（ui 包目录）
+- **已知未验证**：真实 dsh web profile 中的 UI 渲染与 roster 加载仍需人工确认；组 1 在 web profile 下经 workspaceRegistry 的多工作区并集（e2e 主要覆盖 headless cwd 路径）
+- **已验证**：本地 source profile 在隔离 `DSH_HOME` 下完成 add、bundle reconciliation、remove；源码 CLI 与本仓库 checkout 不要求固定目录
+- 构建命令（均从仓库根目录执行）：`pnpm run check`（build + verify）；生成器和回归使用正式 npm 包，不依赖 deepseek-harness 源码路径
 
 ## 总体设计
 
@@ -73,27 +74,35 @@ ctx.tools (host 全局)  ← 所有 session 可见
 
 ## 已实现（2026-08-15 追加）
 
-- **非工作区来源 MCP 展示**：host 扫描 `ctx.loader.entries()` 中 mcp-client 注册（profile patch / bundle / --patch），按 fiber 状态映射 active/error/configured，跨来源 serverName 冲突标 conflict，来源文件经 `cordis.patch.yml` 内容探测（`packages/dsh-mcp-mgr/src/profile.ts`）；UI 只读展示（来源列 + chip + 行底色区分，操作列"查看"经 `connection.api.host.openPath` 打开来源文件）
+- **非工作区来源 MCP 展示**：host 扫描 `ctx.loader.entries()` 中 mcp-client 注册（profile patch / bundle / --patch），按 fiber 状态映射 active/error/configured，跨来源 serverName 冲突标 conflict，来源文件经 `cordis.patch.yml` 内容探测（`packages/dsh-mcp-mgr/src/profile.ts`）；UI 只读展示（来源路径 + chip + 行底色区分）
 - **表格 UI 调整**：来源路径自适应缩短（末一段，同名补末两段；profile 行固定末两段）+ hover 全路径；`table-layout: fixed` 列宽（服务/传输/状态/操作不再折行）；移除按钮红字 ghost
-- **npm 用户安装（bundle 路线）**：`dsh-mcp-mgr` 声明 `dsh.bundle`（patch 引 host + ui 两行），ui 包作其依赖；`@deepseek-ai/*` 全部 peer 化（含补漏的 `@deepseek-ai/schemastery`），配合 profile 的 `nodeLinker: hoisted` + `autoInstallPeers: false`，运行时复用 dsh 内置包、无 registry 副本。已在临时 DSH_HOME 用真实 `dsh plugin add` + `--dump-config` + 单实例冒烟全链路验证
+- **npm 用户安装（bundle 路线）**：`dsh-mcp-mgr` 声明 `dsh.bundle`（patch 引 host + ui 两行），ui 包作其正式 npm 依赖；通过 `dsh plugin --profile web add dsh-mcp-mgr@latest` 安装，卸载只需移除 `dsh-mcp-mgr`，由官方 profile 管理依赖与 bundle 层
 
-## 发布与安装（npm 用户）
+## 发布、安装与验证
 
-```sh
-# 发布（顺序：先 ui 后 mgr，mgr 的依赖里引用 ui）
-cd packages/dsh-mcp-mgr-ui && npm publish
-cd ../dsh-mcp-mgr && npm publish
+完整的用户操作步骤见 [`README.zh.md`](../README.zh.md) 或 [`README.md`](../README.md)。本节只记录边界：
 
-# 用户安装（等价于 scripts/install.mjs 的线上版）
-dsh plugin --profile web add dsh-mcp-mgr@latest dsh-mcp-mgr-ui@latest
+### npm 用户
 
-# 因为 pnpm 的发布年龄限制，最新发布的版本需要满足 dsh 配置的最小年龄才可拉取最新版本
-# 如需即刻使用，可等待过发布年龄或强行执行版本号
-# dsh plugin --profile web add dsh-mcp-mgr@x.x.x dsh-mcp-mgr-ui@x.x.x
+- 发布前从本仓库根目录执行 `pnpm run check`。
+- UI 包和 host 包分别发布后，用户执行：
 
-```
+  ```powershell
+  npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr@latest
+  npx @deepseek-ai/dsh web
+  ```
 
-卸载：`dsh plugin --profile web remove dsh-mcp-mgr`。当前 `scripts/install.mjs` 保留给源码开发环境。
+- 卸载执行 `npx @deepseek-ai/dsh plugin --profile web remove dsh-mcp-mgr`。
+
+### 双源码开发者
+
+- 两个 checkout 可以位于任意目录；只配置一次 `DSH_HARNESS_ROOT`，指向 deepseek-harness 源码根目录。
+- harness 源码根目录先执行 `pnpm install`、`pnpm run build`；本仓库再执行 `pnpm install`、`pnpm run check` 和 `pnpm run profile:add` 安装当前 checkout。
+- harness 源码根目录最后执行 `pnpm dsh web --no-open`。
+- 清理本地 profile 执行 `pnpm run profile:remove`。
+- `DSH_HARNESS_ROOT` 仅供 `profile:add` / `profile:remove` 调用 source CLI；`build`、`gen.mjs`、`verify.mjs` 不读取它。
+
+已验证的本地回归标记为 `ALL PASS`、`E2E PASS`、`SETTLE PASS`；真实 Web UI 渲染仍需人工确认。
 
 ## 未来扩展（本期不做）
 

@@ -3,7 +3,7 @@
  * already settled — no stale list after add or remove. Guards the parse-cache
  * invalidation (keyed by the canonical path) + resync-before-return contract.
  */
-import { Context, Service } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/vendor/cordis/lib/index.js'
+import { Context, Service } from '@deepseek-ai/cordis'
 import { mkdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -24,6 +24,7 @@ function check(label, condition) {
   if (!condition) failures += 1
 }
 
+const previousCwd = process.cwd()
 const workspace = `${process.env.TMPDIR ?? '/tmp'}/dsh-mcp-mgr-settle-${process.pid}`
 rmSync(workspace, { recursive: true, force: true })
 mkdirSync(join(workspace, '.dsh', 'dshmm'), { recursive: true })
@@ -70,6 +71,7 @@ try {
   check('re-enabled row mounted again', enabledRow?.enabled !== false && enabledRow?.status === 'active')
 } finally {
   await ctx.fiber.dispose()
+  process.chdir(previousCwd)
   rmSync(workspace, { recursive: true, force: true })
 }
 

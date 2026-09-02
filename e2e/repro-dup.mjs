@@ -2,9 +2,10 @@
  * Repro: mount / rebuild / unmount / remount cycles against the real gateway
  * to find which step triggers "serverName already in use".
  */
-import { Context, Service } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/vendor/cordis/lib/index.js'
+import { Context, Service } from '@deepseek-ai/cordis'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { McpMgrGateway } from '../packages/dsh-mcp-mgr/lib/types/index.js'
 
 class FakeTools extends Service {
@@ -16,12 +17,13 @@ class FakeTools extends Service {
   execute() { throw new Error('unused') }
 }
 
+const previousCwd = process.cwd()
 const workspace = `${process.env.TMPDIR ?? '/tmp'}/dsh-mcp-mgr-dup-${process.pid}`
 rmSync(workspace, { recursive: true, force: true })
 mkdirSync(join(workspace, '.dsh', 'dshmm'), { recursive: true })
 process.chdir(workspace)
 const mcpJson = join(workspace, '.dsh', 'dshmm', 'mcp.json')
-const serverScript = new URL('./mcp-test-server.mjs', import.meta.url).pathname
+const serverScript = fileURLToPath(new URL('./mcp-test-server.mjs', import.meta.url))
 
 const ctx = new Context()
 await ctx.plugin(FakeTools)
@@ -61,5 +63,6 @@ try {
   console.log(failed.length === 0 ? 'REPRO CLEAN' : 'REPRO: FAILED ROWS PRESENT')
 } finally {
   await ctx.fiber.dispose()
+  process.chdir(previousCwd)
   rmSync(workspace, { recursive: true, force: true })
 }

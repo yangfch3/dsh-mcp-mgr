@@ -3,11 +3,12 @@
  * (matching the real web app). Does the probe's global view miss the tools
  * while the gateway's own scope view sees them?
  */
-import { Context, Service } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/vendor/cordis/lib/index.js'
-import ToolRuntime from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/packages/core/tools/lib/types/index.js'
-import { createScope, scopeOf } from '/Users/fuchee/Documents/Program/PlayGround/deepseek-harness/packages/core/scope/lib/types/index.js'
+import { Context, Service } from '@deepseek-ai/cordis'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import { createScope, scopeOf } from '@deepseek-ai/dsh-scope'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { McpMgrGateway } from '../packages/dsh-mcp-mgr/lib/types/index.js'
 
 class StubSystemPrompt extends Service {
@@ -15,18 +16,19 @@ class StubSystemPrompt extends Service {
   tools() { return [] }
 }
 
+const previousCwd = process.cwd()
 const workspace = `${process.env.TMPDIR ?? '/tmp'}/dsh-mcp-mgr-scope2-${process.pid}`
 rmSync(workspace, { recursive: true, force: true })
 mkdirSync(join(workspace, '.dsh', 'dshmm'), { recursive: true })
 process.chdir(workspace)
 const mcpJson = join(workspace, '.dsh', 'dshmm', 'mcp.json')
-const serverScript = new URL('./mcp-test-server.mjs', import.meta.url).pathname
+const serverScript = fileURLToPath(new URL('./mcp-test-server.mjs', import.meta.url))
 writeFileSync(mcpJson, JSON.stringify({
   mcpServers: { spike: { type: 'stdio', command: process.execPath, args: [serverScript] } },
 }, null, 2))
 
 const root = new Context()
-const scope = createScope(root, 'web-host')
+const scope = createScope(root, {})
 await scope.ctx.plugin(StubSystemPrompt)
 await scope.ctx.plugin(ToolRuntime) // ToolRuntime INSIDE the scope, like the web app
 const gateway = new McpMgrGateway(scope.ctx, { enabled: true, rescanIntervalMs: 600_000 })
@@ -44,5 +46,6 @@ try {
 } finally {
   await scope.dispose()
   await root.fiber.dispose()
+  process.chdir(previousCwd)
   rmSync(workspace, { recursive: true, force: true })
 }
