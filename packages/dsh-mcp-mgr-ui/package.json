@@ -1,7 +1,7 @@
 {
   "name": "dsh-mcp-mgr-ui",
   "description": "Web UI plugin for dsh-mcp-mgr: MCP management tab in dsh settings",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -38,7 +38,7 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "dsh-mcp-mgr": "0.1.5",
+    "dsh-mcp-mgr": "0.2.0",
     "@deepseek-ai/dsh-api-remotes": ">=0.1.2-alpha.4",
     "@deepseek-ai/dsh-api-session-controller": ">=0.1.2-alpha.4",
     "@deepseek-ai/dsh-api-workspace-controller": ">=0.1.2-alpha.4",
