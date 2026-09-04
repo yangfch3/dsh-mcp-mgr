@@ -2,6 +2,10 @@
 
 [English](README.md) | 中文
 
+> dsh@0.1.2 验证通过
+>
+> `npx @deepseek-ai/dsh@0.1.2-rc.1 plugin --profile web add dsh-mcp-mgr@0.2.0`
+
 dsh 的工作区级 MCP 管理器：从每个工作区的 `.dsh/dshmm/mcp.json` 读取 MCP server，动态注册工具，并在 Web 设置页提供管理界面。
 
 ![MCP 服务列表](Doc/assets/plugin-shot.jpg)
