@@ -2,6 +2,10 @@
 
 English | [中文](README.zh.md)
 
+> dsh@0.1.2 verified passed
+>
+> `npx @deepseek-ai/dsh@0.1.2-rc.1 plugin --profile web add dsh-mcp-mgr@0.2.0`
+
 A workspace-level MCP manager for DeepSeek Harness: it reads MCP servers from each workspace's `.dsh/dshmm/mcp.json`, registers their tools dynamically, and provides a management tab in the Web settings UI.
 
 ![MCP servers tab](Doc/assets/plugin-shot.jpg)
