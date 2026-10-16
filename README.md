@@ -4,10 +4,10 @@ English | [中文](README.zh.md)
 
 ---
 
-Compatibility: the published `dsh-mcp-mgr@0.2.0` was verified with `dsh@0.1.5`. This source branch adds support for `dsh@0.2.0-rc.2`; regular users will get that support in a future plugin release.
+0.3.0 Update: verified against dsh@0.2.0-rc.2 (build + regression + real mcp-client e2e); 0.2.0 targets dsh@0.1.5.
 
 ```bash
-npx @deepseek-ai/dsh@0.1.5-rc.2 plugin --profile web add dsh-mcp-mgr@0.2.0
+npx @deepseek-ai/dsh@0.2.0-rc.2 plugin --profile web add dsh-mcp-mgr@0.3.0
 ```
 
 ---

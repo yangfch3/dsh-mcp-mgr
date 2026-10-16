@@ -82,6 +82,12 @@ ctx.tools (host 全局)  ← 所有 session 可见
 
 完整的用户操作步骤见 [`README.zh.md`](../README.zh.md) 或 [`README.md`](../README.md)。本节只记录边界：
 
+### 版本兼容
+
+- `0.3.0` 适配 `dsh@0.2.0-rc.2`（peerDeps `>=0.2.0-rc.2`；`0.2.0` 对应 `dsh@0.1.5`）。
+- 已验证：`pnpm run check` 全绿（含真实 rc.2 Typert registry 挂载 + strict codec）、`e2e/e2e.mjs` 用真实 `dsh-mcp-client@0.2.0-rc.2` + 真实 stdio server 通过；三处兼容改动（`settings.plugins.tab` owner props、`sessions.list.byId` + `retainedBy.mainView`、locale 模块增强）逐条对照 rc.2 实际 API。
+- 未验证（与 `0.2.0` 相同）：真机 profile 装载（`dsh plugin --profile web add` 后启动加载）与浏览器端设置页交互，需人工确认。
+
 ### npm 用户
 
 - 发布前从本仓库根目录执行 `pnpm run check`。
