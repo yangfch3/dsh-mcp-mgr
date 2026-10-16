@@ -1,5 +1,7 @@
 /** Copy dictionaries for the MCP manager Settings tab. */
 
+import type {} from '@deepseek-ai/dsh-client-ui-slots'
+
 /** Simplified Chinese dictionary and key source of truth. */
 export const zh = {
   tab: 'MCP 服务',
@@ -64,6 +66,13 @@ export const zh = {
 
 /** MCP manager locale key union. */
 export type McpLocaleKey = keyof typeof zh
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** MCP manager copy. */
+    'settings.mcpMgr': McpLocaleKey
+  }
+}
 
 /** English dictionary checked against the Chinese key set. */
 export const en: Record<McpLocaleKey, string> = {

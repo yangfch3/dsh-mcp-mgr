@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { McpApplyResult, McpManagerSnapshot, McpPluginVersionInfo, McpServerDraft, McpServerState, McpServerStatus } from 'dsh-mcp-mgr/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SettingsPluginsTabOwnerProps } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { McpServerForm } from './McpServerForm.tsx'
 import type { McpLocaleKey } from './locales.ts'
@@ -45,6 +46,7 @@ export interface McpSettingsTabInjected {
 /** Full component props assembled by the Settings slot renderer. */
 export type McpSettingsTabProps =
   PropsRuntime<'settings.plugins.tab'>
+  & SettingsPluginsTabOwnerProps
   & PropsLocale<'settings.mcpMgr'>
   & InjectFace<McpSettingsTabInjected>
 

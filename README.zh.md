@@ -4,7 +4,7 @@
 
 ---
 
-0.2.0 更新: 已验证适配 dsh@0.1.5
+兼容性：已发布的 `dsh-mcp-mgr@0.2.0` 已验证适用于 `dsh@0.1.5`。此源码分支新增对 `dsh@0.2.0-rc.2` 的支持；普通用户需等待后续插件版本发布才能使用。
 
 ```bash
 npx @deepseek-ai/dsh@0.1.5-rc.2 plugin --profile web add dsh-mcp-mgr@0.2.0

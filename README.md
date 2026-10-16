@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ---
 
-0.2.0 Update: Has been verified to be compatible with dsh@0.1.5
+Compatibility: the published `dsh-mcp-mgr@0.2.0` was verified with `dsh@0.1.5`. This source branch adds support for `dsh@0.2.0-rc.2`; regular users will get that support in a future plugin release.
 
 ```bash
 npx @deepseek-ai/dsh@0.1.5-rc.2 plugin --profile web add dsh-mcp-mgr@0.2.0

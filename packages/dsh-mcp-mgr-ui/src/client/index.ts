@@ -9,22 +9,17 @@ import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { TYPERT_REMOTE } from 'dsh-mcp-mgr/remote'
 import type { McpApplyResult, McpManagerSnapshot, McpPluginVersionInfo, McpServerDraft } from 'dsh-mcp-mgr/types'
 import { loadStrictMode, McpSettingsTab, type McpSettingsTabInjected } from './McpSettingsTab.tsx'
-import { en, zh, type McpLocaleKey } from './locales.ts'
+import { en, zh } from './locales.ts'
 
 export type { McpSettingsTabInjected, McpSettingsTabProps } from './McpSettingsTab.tsx'
 export { STRICT_MODE_KEY, loadStrictMode } from './McpSettingsTab.tsx'
 export type { McpLocaleKey } from './locales.ts'
-
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    /** MCP manager copy. */
-    'settings.mcpMgr': McpLocaleKey
-  }
-}
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'settings.mcpMgr'
@@ -68,6 +63,9 @@ export async function apply(ctx: ClientContext): Promise<void> {
     return namespace
   }
 
+  const currentMainSession = (): SessionId | undefined => Object.values(ctx.sessions.list.getSnapshot().byId)
+    .find(session => (session.retainedBy.mainView ?? 0) > 0)?.id
+
   const setStrictMode = async (enabled: boolean): Promise<McpManagerSnapshot> => {
     const result = await mcpMgr().setStrictMode(enabled)
     if (!result.ok) {
@@ -94,7 +92,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
   // workspace of the currently open session whenever it (or the workspace
   // list) changes. Non-strict host ignores the push.
   const pushActiveWorkspace = (): void => {
-    const current = ctx.sessions.list.getSnapshot().current
+    const current = currentMainSession()
     const items = ctx.workspaces.list.getSnapshot().items
     const active = current === undefined
       ? undefined
@@ -155,7 +153,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
       title: workspace.title,
     })),
     currentWorkspacePath: () => {
-      const current = ctx.sessions.list.getSnapshot().current
+      const current = currentMainSession()
       if (current === undefined) return ''
       return ctx.workspaces.list.getSnapshot().items
         .find(workspace => workspace.sessionIds.includes(current))?.path ?? ''
