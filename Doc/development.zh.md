@@ -73,6 +73,18 @@ pnpm exec node e2e/apply-remove-settle.mjs
 pnpm run profile:remove
 ```
 
+## 发布
+
+发布由 tag 驱动：推送 `vX.Y.Z` tag 是版本进入 npm 的唯一途径，因此不会出现"发了包没打 tag"。
+
+1. 把 `packages/dsh-mcp-mgr/package.json` 和 `packages/dsh-mcp-mgr-ui/package.json` 的 `version` 一起改掉（含两处互相依赖的版本号），执行 `pnpm install` 刷新 lockfile，然后提交。
+2. 打 tag 并推送：`git tag -a vX.Y.Z -m "vX.Y.Z"`，再 `git push --follow-tags`（裸 `git push` 不会推 tag）。
+3. `.github/workflows/release.yml` 会安装依赖、跑 `pnpm run check`、按 `dsh-mcp-mgr-ui` → `dsh-mcp-mgr` 顺序带 `--provenance` 发布、校验两个包，并创建 GitHub release。
+
+预发布 tag（`vX.Y.Z-rc.1`）会发到 `next` dist-tag 并标记为 GitHub prerelease，`latest` 保持在稳定版本上。可以先在 Actions → release → Run workflow 手动跑一次（dry run，只做安装/构建/回归，不发布）确认 runner 没问题，再打第一个正式 tag。
+
+一次性配置：在仓库 secrets 里添加 `NPM_TOKEN`，值为可发布这两个包的 npm automation token（automation token 同时绕过 OTP 提示）。tag 与两个包的版本不一致、或密钥缺失时，job 会在发布前直接失败；registry 上已存在的版本会被跳过，所以失败后可以直接重跑。
+
 ## 构建命令
 
 以下命令均在本仓库根目录执行：

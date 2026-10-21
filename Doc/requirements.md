@@ -90,8 +90,8 @@ ctx.tools (host 全局)  ← 所有 session 可见
 
 ### npm 用户
 
-- 发布前从本仓库根目录执行 `pnpm run check`。
-- UI 包和 host 包分别发布后，用户执行：
+- 发布由 tag 触发：推送 `vX.Y.Z` 后 `.github/workflows/release.yml` 执行 `pnpm run check`，并依次发布 `dsh-mcp-mgr-ui`、`dsh-mcp-mgr`（含 provenance），无需本地 `npm publish`；步骤见 [`development.zh.md`](development.zh.md)。
+- 用户安装：
 
   ```powershell
   npx @deepseek-ai/dsh plugin --profile web add dsh-mcp-mgr@latest

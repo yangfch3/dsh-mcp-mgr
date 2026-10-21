@@ -1,0 +1,154 @@
+name: release
+
+# Tag-driven publishing: pushing a `vX.Y.Z` tag is the only way a new version
+# reaches npm. The tag must equal both package versions, the tree is built and
+# regression-checked here, then both packages publish with provenance.
+#
+# `workflow_dispatch` runs the pipeline in dry-run mode (build + verify only),
+# which is the safe way to confirm the runner before the first real release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and verify only, publish nothing
+        type: boolean
+        default: true
+
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # gh release create
+  id-token: write # npm provenance via OIDC
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # --generate-notes needs the history
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        # No version input: it follows package.json "packageManager".
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Resolve version and guard the tag
+        env:
+          TAG: ${{ github.ref_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            VERSION=$(node -p "require('./packages/dsh-mcp-mgr/package.json').version")
+            echo "dry run: version $VERSION taken from package.json, tag unused"
+          else
+            if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+              echo "::error::tag $TAG is not v<major>.<minor>.<patch>[-<prerelease>]"
+              exit 1
+            fi
+            VERSION="${TAG#v}"
+            for pkg in dsh-mcp-mgr dsh-mcp-mgr-ui; do
+              actual=$(node -p "require('./packages/$pkg/package.json').version")
+              if [[ "$actual" != "$VERSION" ]]; then
+                echo "::error::tag $TAG does not match packages/$pkg/package.json ($actual)"
+                exit 1
+              fi
+            done
+            echo "tag $TAG matches both packages"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Require npm token
+        if: ${{ inputs.dry_run != true }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo "::error::repo secret NPM_TOKEN is missing (npm automation token with publish access to both packages)"
+            exit 1
+          fi
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and verify
+        run: pnpm run check
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "dry run: build + verify passed for $VERSION; nothing was published"
+
+      - name: Publish to npm
+        if: ${{ inputs.dry_run != true }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag_args=()
+          if [[ "$VERSION" == *-* ]]; then
+            tag_args=(--tag next) # a prerelease must not move the `latest` dist-tag
+          fi
+          # dsh-mcp-mgr depends on dsh-mcp-mgr-ui, so the UI package goes first.
+          for pkg in dsh-mcp-mgr-ui dsh-mcp-mgr; do
+            if npm view "$pkg@$VERSION" version >/dev/null 2>&1; then
+              echo "skip $pkg@$VERSION (already on the registry)"
+              continue
+            fi
+            ( cd "packages/$pkg" && npm publish --provenance "${tag_args[@]}" )
+          done
+
+      - name: Verify published versions
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          set -euo pipefail
+          for pkg in dsh-mcp-mgr-ui dsh-mcp-mgr; do
+            found=""
+            for _ in 1 2 3 4 5; do
+              found=$(npm view "$pkg@$VERSION" version 2>/dev/null || true)
+              if [[ "$found" == "$VERSION" ]]; then break; fi
+              sleep 6
+            done
+            if [[ "$found" != "$VERSION" ]]; then
+              echo "::error::$pkg@$VERSION is not on the registry"
+              exit 1
+            fi
+            echo "$pkg@$found is published"
+            if [[ "$VERSION" != *-* ]]; then
+              latest=$(npm view "$pkg" version)
+              if [[ "$latest" != "$VERSION" ]]; then
+                echo "::error::$pkg latest=$latest, expected $VERSION"
+                exit 1
+              fi
+              echo "$pkg latest=$latest"
+            fi
+          done
+
+      - name: Create GitHub release
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists"
+            exit 0
+          fi
+          release_args=(--verify-tag --generate-notes)
+          if [[ "$VERSION" == *-* ]]; then
+            release_args+=(--prerelease)
+          fi
+          gh release create "$TAG" "${release_args[@]}"

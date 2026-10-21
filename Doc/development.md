@@ -73,6 +73,18 @@ Stop the Web process first, then run from the plugin source root:
 pnpm run profile:remove
 ```
 
+## Releases
+
+Publishing is driven by the tag: a pushed `vX.Y.Z` tag is the only way a version reaches npm, so a release cannot half-happen.
+
+1. Bump `version` in both `packages/dsh-mcp-mgr/package.json` and `packages/dsh-mcp-mgr-ui/package.json` (plus the two inter-package pins), run `pnpm install` to refresh the lockfile, and commit.
+2. Tag and push the tag: `git tag -a vX.Y.Z -m "vX.Y.Z"` then `git push --follow-tags` (a plain `git push` does not push tags).
+3. `.github/workflows/release.yml` installs, runs `pnpm run check`, publishes `dsh-mcp-mgr-ui` before `dsh-mcp-mgr` with `--provenance`, verifies both packages, and creates the GitHub release.
+
+A prerelease tag (`vX.Y.Z-rc.1`) publishes under the `next` dist-tag and as a GitHub prerelease, so `latest` stays on the stable line. Run the workflow manually (Actions → release → Run workflow) to exercise install, build, and the regression on the runner without publishing anything — do that once before the first real release.
+
+One-time setup: add the repo secret `NPM_TOKEN` with an npm automation token that may publish both packages (automation tokens also bypass OTP prompts). The job stops before publishing when the tag does not equal both package versions or the secret is missing; versions already on the registry are skipped, so a failed run can be re-run safely.
+
 ## Build commands
 
 Run all commands from this repository root:
