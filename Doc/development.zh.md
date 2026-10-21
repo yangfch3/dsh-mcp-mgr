@@ -83,7 +83,9 @@ pnpm run profile:remove
 
 预发布 tag（`vX.Y.Z-rc.1`）会发到 `next` dist-tag 并标记为 GitHub prerelease，`latest` 保持在稳定版本上。可以先在 Actions → release → Run workflow 手动跑一次（dry run，只做安装/构建/回归，不发布）确认 runner 没问题，再打第一个正式 tag。
 
-一次性配置：在仓库 secrets 里添加 `NPM_TOKEN`，值为可发布这两个包的 npm automation token（automation token 同时绕过 OTP 提示）。tag 与两个包的版本不一致、或密钥缺失时，job 会在发布前直接失败；registry 上已存在的版本会被跳过，所以失败后可以直接重跑。
+一次性配置，两个包各做一次（npmjs.com → 该包 → Settings → Trusted publishing → GitHub Actions）：owner 填 `yangfch3`、repository 填 `dsh-mcp-mgr`、workflow filename 填 `release.yml`、environment 留空。不需要任何 npm token 或仓库 secret —— workflow 的 `id-token: write` 权限负责 OIDC 认证，同时生成 provenance。tag 与两个包的版本不一致时 job 会在发布前失败；registry 上已存在的版本会被跳过，所以失败后可以直接重跑。
+
+注意 npm 的两个行为：还没成功发布过的 trusted publishing 配置会在 48 小时后失效（错过了就重建一个）；本地没有 token，因此本地 `npm publish` 不再能认证，发布只能在 CI 里发生。万一必须手工发布，npm 现在只提供 granular token，且要勾上 **Bypass 2FA** 才能免交互，写权限 token 最长 90 天有效。
 
 ## 构建命令
 

@@ -83,7 +83,9 @@ Publishing is driven by the tag: a pushed `vX.Y.Z` tag is the only way a version
 
 A prerelease tag (`vX.Y.Z-rc.1`) publishes under the `next` dist-tag and as a GitHub prerelease, so `latest` stays on the stable line. Run the workflow manually (Actions → release → Run workflow) to exercise install, build, and the regression on the runner without publishing anything — do that once before the first real release.
 
-One-time setup: add the repo secret `NPM_TOKEN` with an npm automation token that may publish both packages (automation tokens also bypass OTP prompts). The job stops before publishing when the tag does not equal both package versions or the secret is missing; versions already on the registry are skipped, so a failed run can be re-run safely.
+One-time setup, once per package (npmjs.com → the package → Settings → Trusted publishing → GitHub Actions): owner `yangfch3`, repository `dsh-mcp-mgr`, workflow filename `release.yml`, environment left blank. No npm token or repository secret is stored — the `id-token: write` permission authenticates the publish through OIDC and also produces the provenance attestation. The job stops before publishing when the tag does not equal both package versions; versions already on the registry are skipped, so a failed run can be re-run safely.
+
+Two npm behaviours to respect: a trusted publishing configuration that has not published yet expires after 48 hours (recreate it if you miss the window), and with no token stored a local `npm publish` no longer authenticates — publishing only happens in CI. If you ever must publish by hand, npm only offers write access as a granular token with **Bypass 2FA** enabled, and write tokens expire within 90 days.
 
 ## Build commands
 

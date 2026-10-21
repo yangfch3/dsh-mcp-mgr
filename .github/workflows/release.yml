@@ -4,6 +4,11 @@ name: release
 # reaches npm. The tag must equal both package versions, the tree is built and
 # regression-checked here, then both packages publish with provenance.
 #
+# Auth is npm trusted publishing (OIDC): no npm token or repo secret is stored.
+# Each package must list this repository + workflow as a trusted publisher on
+# npmjs.com; the `id-token: write` permission below is what authenticates the
+# publish and what mints the provenance attestation.
+#
 # `workflow_dispatch` runs the pipeline in dry-run mode (build + verify only),
 # which is the safe way to confirm the runner before the first real release.
 on:
@@ -43,7 +48,6 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - name: Resolve version and guard the tag
         env:
@@ -71,15 +75,13 @@ jobs:
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Require npm token
+      - name: Set up npm CLI
         if: ${{ inputs.dry_run != true }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Trusted publishing (OIDC) needs an npm newer than the one bundled with
+        # Node 22; no token is configured, so publish authenticates via OIDC.
         run: |
-          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
-            echo "::error::repo secret NPM_TOKEN is missing (npm automation token with publish access to both packages)"
-            exit 1
-          fi
+          npm install -g npm@11
+          npm --version
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -94,8 +96,6 @@ jobs:
 
       - name: Publish to npm
         if: ${{ inputs.dry_run != true }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           tag_args=()
