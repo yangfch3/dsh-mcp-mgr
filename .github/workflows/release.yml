@@ -98,37 +98,60 @@ jobs:
         if: ${{ inputs.dry_run != true }}
         run: |
           set -euo pipefail
+          registry_has() { npm view "$1@$VERSION" version >/dev/null 2>&1; }
           tag_args=()
           if [[ "$VERSION" == *-* ]]; then
             tag_args=(--tag next) # a prerelease must not move the `latest` dist-tag
           fi
           # dsh-mcp-mgr depends on dsh-mcp-mgr-ui, so the UI package goes first.
           for pkg in dsh-mcp-mgr-ui dsh-mcp-mgr; do
-            if npm view "$pkg@$VERSION" version >/dev/null 2>&1; then
+            if registry_has "$pkg"; then
               echo "skip $pkg@$VERSION (already on the registry)"
               continue
             fi
-            ( cd "packages/$pkg" && npm publish --provenance "${tag_args[@]}" )
+            if ( cd "packages/$pkg" && npm publish --provenance "${tag_args[@]}" ); then
+              continue
+            fi
+            # Writes become readable before reads catch up, so a failed PUT can
+            # still mean the version landed (or landed on an earlier run).
+            if registry_has "$pkg"; then
+              echo "::warning::$pkg@$VERSION is on the registry despite the publish error — continuing"
+              continue
+            fi
+            echo "::error::publishing $pkg@$VERSION failed"
+            exit 1
           done
 
       - name: Verify published versions
         if: ${{ inputs.dry_run != true }}
         run: |
           set -euo pipefail
+          # Registry reads lag behind the publish write; poll instead of failing
+          # on the first miss. VERIFY_TIMEOUT_SECONDS exists so this loop can be
+          # exercised by the local script tests.
+          timeout_s="${VERIFY_TIMEOUT_SECONDS:-240}"
           for pkg in dsh-mcp-mgr-ui dsh-mcp-mgr; do
+            deadline=$(( SECONDS + timeout_s ))
             found=""
-            for _ in 1 2 3 4 5; do
+            while (( SECONDS < deadline )); do
               found=$(npm view "$pkg@$VERSION" version 2>/dev/null || true)
               if [[ "$found" == "$VERSION" ]]; then break; fi
-              sleep 6
+              echo "waiting for $pkg@$VERSION to be readable (${SECONDS}s)"
+              sleep 10
             done
             if [[ "$found" != "$VERSION" ]]; then
-              echo "::error::$pkg@$VERSION is not on the registry"
+              echo "::error::$pkg@$VERSION is not readable from the registry after ${timeout_s}s"
               exit 1
             fi
             echo "$pkg@$found is published"
             if [[ "$VERSION" != *-* ]]; then
-              latest=$(npm view "$pkg" version)
+              latest=""
+              while (( SECONDS < deadline )); do
+                latest=$(npm view "$pkg" version 2>/dev/null || true)
+                if [[ "$latest" == "$VERSION" ]]; then break; fi
+                echo "waiting for $pkg latest to become $VERSION (got ${latest:-none})"
+                sleep 10
+              done
               if [[ "$latest" != "$VERSION" ]]; then
                 echo "::error::$pkg latest=$latest, expected $VERSION"
                 exit 1
