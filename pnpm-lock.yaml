@@ -144,7 +144,7 @@ importers:
         specifier: ^4.0.3
         version: 4.0.3
       dsh-mcp-mgr-ui:
-        specifier: 0.3.0
+        specifier: 0.3.1
         version: link:../dsh-mcp-mgr-ui
       zod:
         specifier: ^4.4.3
@@ -186,7 +186,7 @@ importers:
         specifier: '>=0.2.0-rc.2'
         version: 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)
       dsh-mcp-mgr:
-        specifier: 0.3.0
+        specifier: 0.3.1
         version: link:../dsh-mcp-mgr
       react:
         specifier: ^18.2.0

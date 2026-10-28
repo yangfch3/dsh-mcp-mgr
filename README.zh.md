@@ -4,10 +4,10 @@
 
 ---
 
-0.3.0 更新：已验证适配 dsh@0.2.0-rc.2（构建 + 回归 + 真实 mcp-client 端到端）；0.2.0 对应 dsh@0.1.5。
+0.3.x 更新：已验证适配 dsh@0.2.0-rc.2（构建 + 回归 + 真实 mcp-client 端到端）；0.2.0 对应 dsh@0.1.5。
 
 ```bash
-npx @deepseek-ai/dsh@0.2.0-rc.2 plugin --profile web add dsh-mcp-mgr@0.3.0
+npx @deepseek-ai/dsh@0.2.0-rc.2 plugin --profile web add dsh-mcp-mgr@latest
 ```
 
 ---
