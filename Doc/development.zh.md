@@ -87,6 +87,8 @@ pnpm run profile:remove
 
 注意 npm 的两个行为：还没成功发布过的 trusted publishing 配置会在 48 小时后失效（错过了就重建一个）；本地没有 token，因此本地 `npm publish` 不再能认证，发布只能在 CI 里发生。万一必须手工发布，npm 现在只提供 granular token，且要勾上 **Bypass 2FA** 才能免交互，写权限 token 最长 90 天有效。
 
+两个 `package.json` 必须保留指向本仓库的 `repository` 字段：npm 会拿它和 provenance 里的仓库信息比对，缺失或指向别的仓库时发布会被拒（`422 Unprocessable Entity - Error verifying sigstore provenance bundle`）。
+
 ## 构建命令
 
 以下命令均在本仓库根目录执行：

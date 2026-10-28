@@ -87,6 +87,8 @@ One-time setup, once per package (npmjs.com → the package → Settings → Tru
 
 Two npm behaviours to respect: a trusted publishing configuration that has not published yet expires after 48 hours (recreate it if you miss the window), and with no token stored a local `npm publish` no longer authenticates — publishing only happens in CI. If you ever must publish by hand, npm only offers write access as a granular token with **Bypass 2FA** enabled, and write tokens expire within 90 days.
 
+Both `package.json` files must keep their `repository` field pointing at this repo: npm validates it against the provenance bundle and rejects the publish with `422 Unprocessable Entity - Error verifying sigstore provenance bundle` when it is missing or names a different repository.
+
 ## Build commands
 
 Run all commands from this repository root:
