@@ -38,6 +38,10 @@
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yangfch3/dsh-mcp-mgr.git"
+  },
   "peerDependencies": {
     "dsh-mcp-mgr": "0.3.1",
     "@deepseek-ai/dsh-api-remotes": ">=0.2.0-rc.2",

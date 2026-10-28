@@ -41,6 +41,10 @@
     "cordis.patch.yml"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yangfch3/dsh-mcp-mgr.git"
+  },
   "dependencies": {
     "dsh-mcp-mgr-ui": "0.3.1",
     "chokidar": "^4.0.3",
