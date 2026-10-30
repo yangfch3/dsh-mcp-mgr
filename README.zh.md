@@ -7,7 +7,7 @@
 ✅ 最新的 **0.3.x** 版本已在 **dsh@0.2.1** 版本通过兼容性测试
 
 ```bash
-npx @deepseek-ai/dsh@0.2.0-rc.2 plugin --profile web add dsh-mcp-mgr@latest
+npx @deepseek-ai/dsh@0.2.1-rc.5 plugin --profile web add dsh-mcp-mgr@latest
 ```
 
 ---
