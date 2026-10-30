@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 ---
 
-0.3.x Update: verified against dsh@0.2.0-rc.2 (build + regression + real mcp-client e2e); 0.2.0 targets dsh@0.1.5.
+✅ Latest version **0.3.x** has passed the compatibility test at **dsh@0.2.1**
 
 ```bash
 npx @deepseek-ai/dsh@0.2.0-rc.2 plugin --profile web add dsh-mcp-mgr@latest
