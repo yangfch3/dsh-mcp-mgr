@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 ✅ Latest version **0.3.x** has passed the compatibility test at **dsh@0.2.1**
 
 ```bash
-npx @deepseek-ai/dsh@0.2.0-rc.2 plugin --profile web add dsh-mcp-mgr@latest
+npx @deepseek-ai/dsh@0.2.1-rc.5 plugin --profile web add dsh-mcp-mgr@latest
 ```
 
 ---
